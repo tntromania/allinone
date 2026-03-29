@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Viralio Pipeline – YT → Voice → Cut → Clean</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+:root {
+  --bg: #09090b;
+  --surface: #111113;
+  --surface2: #18181b;
+  --border: rgba(255,255,255,0.08);
+  --border-active: rgba(99,102,241,0.5);
+  --indigo: #6366f1;
+  --indigo-dark: #4f46e5;
+  --pink: #ec4899;
+  --text: #f8fafc;
+  --text-muted: #64748b;
+  --text-sub: #94a3b8;
+  --success: #22c55e;
+  --radius: 1.25rem;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background:
+    radial-gradient(ellipse 80% 50% at 20% -10%, rgba(99,102,241,0.18) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 110%, rgba(236,72,153,0.12) 0%, transparent 60%);
+  pointer-events: none; z-index: 0;
+}
+
+/* HEADER */
+header {
+  position: sticky; top: 0; z-index: 100;
+  backdrop-filter: blur(24px);
+  background: rgba(9,9,11,0.8);
+  border-bottom: 1px solid var(--border);
+  padding: 0.9rem 2rem;
+  display: flex; align-items: center; gap: 0.75rem;
+}
+.logo-icon {
+  width: 2rem; height: 2rem; border-radius: 0.6rem;
+  background: linear-gradient(135deg, var(--indigo), var(--pink));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.75rem; color: #fff;
+  box-shadow: 0 0 20px rgba(99,102,241,0.4);
+}
+header h1 { font-size: 1.1rem; font-weight: 900; letter-spacing: -0.02em; }
+.header-sub { color: var(--text-muted); font-size: 0.8rem; font-weight: 600; }
+.badge {
+  margin-left: auto;
+  font-size: 0.6rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em;
+  padding: 0.3rem 0.8rem; border-radius: 999px;
+  background: linear-gradient(90deg, var(--indigo), var(--pink)); color: #fff;
+}
+
+/* MAIN */
+main {
+  position: relative; z-index: 1;
+  max-width: 860px; margin: 0 auto;
+  padding: 2.5rem 1.25rem 4rem;
+}
+.page-title { text-align: center; margin-bottom: 2.5rem; }
+.page-title h2 {
+  font-size: 2rem; font-weight: 900; letter-spacing: -0.04em;
+  background: linear-gradient(90deg, #fff 30%, var(--indigo) 60%, var(--pink) 90%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  line-height: 1.15;
+}
+.page-title p { color: var(--text-sub); font-size: 0.9rem; margin-top: 0.5rem; }
+
+/* PIPELINE */
+.pipeline { display: flex; flex-direction: column; }
+
+.step-connector {
+  display: flex; justify-content: center; align-items: center;
+  height: 2.5rem; position: relative;
+}
+.step-connector::before {
+  content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 2px;
+  background: linear-gradient(to bottom, rgba(99,102,241,0.4), rgba(236,72,153,0.2));
+  transform: translateX(-50%);
+}
+.arrow-icon {
+  width: 1.8rem; height: 1.8rem; border-radius: 50%;
+  background: var(--surface2); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--indigo); font-size: 0.65rem; position: relative; z-index: 2;
+}
+
+/* STEP CARD */
+.step-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden; transition: border-color 0.3s;
+}
+.step-card.active    { border-color: var(--border-active); }
+.step-card.done      { border-color: rgba(34,197,94,0.3); }
+.step-card.error-state { border-color: rgba(239,68,68,0.4); }
+
+.step-header {
+  display: flex; align-items: center; gap: 1rem;
+  padding: 1.1rem 1.5rem;
+  background: rgba(255,255,255,0.02);
+  border-bottom: 1px solid var(--border);
+}
+.step-num {
+  width: 2rem; height: 2rem; border-radius: 0.6rem;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.7rem; font-weight: 900; flex-shrink: 0;
+  transition: background 0.2s;
+}
+.step-num.idle    { background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border); }
+.step-num.running { background: rgba(99,102,241,0.2); color: var(--indigo); border: 1px solid rgba(99,102,241,0.4); animation: pulse-i 1.5s infinite; }
+.step-num.done    { background: rgba(34,197,94,0.15); color: var(--success); border: 1px solid rgba(34,197,94,0.3); }
+.step-num.err     { background: rgba(239,68,68,0.15); color: #ef4444; border: 1px solid rgba(239,68,68,0.3); }
+@keyframes pulse-i {
+  0%,100% { box-shadow: 0 0 0 0 rgba(99,102,241,0.4); }
+  50%      { box-shadow: 0 0 0 6px rgba(99,102,241,0); }
+}
+
+.step-info { flex: 1; }
+.step-info h3 { font-size: 0.9rem; font-weight: 700; letter-spacing: -0.01em; }
+.step-info p  { font-size: 0.72rem; color: var(--text-muted); margin-top: 0.1rem; }
+
+.step-tag {
+  font-size: 0.6rem; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 0.08em; padding: 0.25rem 0.7rem; border-radius: 999px; white-space: nowrap;
+}
+.tag-idle    { background: rgba(255,255,255,0.05); color: var(--text-muted); }
+.tag-running { background: rgba(99,102,241,0.15);  color: var(--indigo); }
+.tag-done    { background: rgba(34,197,94,0.12);   color: var(--success); }
+.tag-err     { background: rgba(239,68,68,0.12);   color: #ef4444; }
+.tag-skip    { background: rgba(255,255,255,0.04); color: var(--text-muted); }
+
+.step-body { padding: 1.25rem 1.5rem; }
+
+/* INPUTS */
+input, select { font-family: 'Inter', sans-serif; }
+
+.input-group { display: flex; gap: 0.6rem; margin-bottom: 0.75rem; }
+
+.url-input {
+  flex: 1; background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 0.75rem; padding: 0.7rem 1rem; color: var(--text);
+  font-size: 0.85rem; outline: none; transition: border-color 0.2s;
+}
+.url-input:focus { border-color: var(--indigo); }
+.url-input::placeholder { color: var(--text-muted); }
+
+.settings-row { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.setting-item { flex: 1; min-width: 155px; }
+
+.lbl {
+  font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 0.4rem; display: block;
+}
+
+.range-wrap { display: flex; align-items: center; gap: 0.6rem; }
+input[type="range"] { flex: 1; accent-color: var(--indigo); cursor: pointer; }
+.range-cap { font-size: 0.62rem; color: var(--text-muted); white-space: nowrap; }
+
+select {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 0.6rem; padding: 0.5rem 0.8rem; color: var(--text);
+  font-size: 0.82rem; width: 100%; outline: none; cursor: pointer;
+}
+select:focus { border-color: var(--indigo); }
+
+.text-box {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 0.75rem; padding: 1rem; font-size: 0.8rem;
+  color: var(--text-sub); line-height: 1.65;
+  max-height: 180px; overflow-y: auto;
+  white-space: pre-wrap; word-break: break-word;
+}
+.text-box::-webkit-scrollbar { width: 4px; }
+.text-box::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+audio { width: 100%; margin-top: 0.75rem; border-radius: 0.6rem; outline: none; }
+
+/* TOGGLE */
+.toggle-wrap {
+  display: flex; align-items: center; gap: 0.75rem;
+  background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+  border-radius: 0.75rem; padding: 0.9rem 1rem; cursor: pointer; transition: border-color 0.2s;
+}
+.toggle-wrap:hover { border-color: var(--border-active); }
+.toggle-wrap input { display: none; }
+.toggle-track {
+  width: 2.5rem; height: 1.25rem; border-radius: 999px;
+  background: var(--surface2); border: 1px solid var(--border);
+  position: relative; flex-shrink: 0; transition: background 0.2s;
+}
+.toggle-thumb {
+  position: absolute; left: 2px; top: 50%; transform: translateY(-50%);
+  width: 0.9rem; height: 0.9rem; border-radius: 50%;
+  background: var(--text-muted); transition: left 0.2s, background 0.2s;
+}
+input:checked ~ .toggle-track { background: rgba(99,102,241,0.3); border-color: rgba(99,102,241,0.5); }
+input:checked ~ .toggle-track .toggle-thumb { left: calc(100% - 0.9rem - 2px); background: var(--indigo); }
+.toggle-text { flex: 1; }
+.toggle-text strong { font-size: 0.82rem; font-weight: 700; display: block; }
+.toggle-text span   { font-size: 0.7rem; color: var(--text-muted); }
+
+/* BUTTONS */
+.btn-primary {
+  background: linear-gradient(135deg, var(--indigo), var(--indigo-dark));
+  color: #fff; border: none; border-radius: 0.75rem;
+  padding: 0.65rem 1.3rem; font-size: 0.82rem; font-weight: 700; cursor: pointer;
+  white-space: nowrap; display: flex; align-items: center; gap: 0.5rem;
+  transition: opacity 0.2s, transform 0.15s;
+}
+.btn-primary:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.btn-ghost {
+  background: rgba(236,72,153,0.1); border: 1px solid rgba(236,72,153,0.3);
+  color: var(--pink); border-radius: 0.6rem;
+  padding: 0.45rem 1rem; font-size: 0.78rem; font-weight: 700; cursor: pointer;
+  display: flex; align-items: center; gap: 0.4rem; transition: background 0.2s;
+}
+.btn-ghost:hover:not(:disabled) { background: rgba(236,72,153,0.2); }
+.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.btn-run {
+  background: linear-gradient(135deg, var(--indigo), var(--pink));
+  color: #fff; border: none; border-radius: 1rem;
+  padding: 1rem 2.5rem; font-size: 1rem; font-weight: 900; letter-spacing: -0.01em;
+  cursor: pointer; display: flex; align-items: center; gap: 0.75rem;
+  transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+  box-shadow: 0 0 30px rgba(99,102,241,0.35);
+}
+.btn-run:hover:not(:disabled) { opacity: 0.9; transform: translateY(-2px); box-shadow: 0 0 40px rgba(99,102,241,0.5); }
+.btn-run:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+
+.btn-success {
+  background: linear-gradient(135deg, #16a34a, #15803d);
+  color: #fff; border: none; border-radius: 0.6rem;
+  padding: 0.55rem 1.2rem; font-size: 0.82rem; font-weight: 700; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  text-decoration: none; transition: opacity 0.2s;
+}
+.btn-success:hover { opacity: 0.85; }
+
+/* ERR */
+.err-banner {
+  background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3);
+  border-radius: 0.75rem; padding: 0.75rem 1rem; font-size: 0.8rem; color: #fca5a5;
+  display: flex; gap: 0.5rem; align-items: flex-start; margin-top: 0.5rem;
+}
+
+/* RUN SECTION */
+.run-section {
+  margin-top: 2.5rem; display: flex; flex-direction: column; align-items: center; gap: 1rem;
+}
+.run-subtitle { font-size: 0.72rem; color: var(--text-muted); text-align: center; }
+
+/* LOG */
+.global-log {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 0.75rem; padding: 0.75rem 1rem;
+  font-size: 0.75rem; font-family: 'Courier New', monospace;
+  margin-top: 1.5rem; max-height: 120px; overflow-y: auto;
+}
+.global-log::-webkit-scrollbar { width: 3px; }
+.global-log::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+.log-line { line-height: 1.7; }
+.log-line.info { color: var(--text-sub); }
+.log-line.ok   { color: var(--success); }
+.log-line.err  { color: #ef4444; }
+.log-line.run  { color: var(--indigo); }
+
+/* RESULT */
+.result-card {
+  background: var(--surface); border: 1px solid rgba(34,197,94,0.3);
+  border-radius: var(--radius); padding: 1.5rem; margin-top: 2rem; display: none;
+}
+.result-card.visible { display: block; animation: fsup 0.4s ease; }
+@keyframes fsup {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.result-card h3 {
+  font-size: 1rem; font-weight: 800; letter-spacing: -0.02em;
+  margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;
+}
+.result-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px,1fr)); gap: 0.75rem; }
+.dl-item {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 0.875rem; padding: 1rem;
+  display: flex; flex-direction: column; gap: 0.5rem;
+}
+.dl-label { font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
+
+/* ════════════
+   CAPTION CANVAS
+   ════════════ */
+.cap-canvas-wrap {
+  margin-top: 1rem;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 1rem; overflow: hidden; display: none;
+}
+.cap-canvas-wrap.visible { display: block; animation: fsup 0.35s ease; }
+
+.cap-video-cont {
+  position: relative; width: 100%; background: #000;
+  user-select: none;
+}
+.cap-video-cont video { width: 100%; display: block; pointer-events: none; }
+
+/* draggable band */
+.cap-bar {
+  position: absolute; left: 0; right: 0;
+  background: rgba(99,102,241,0.32);
+  border-top: 2px solid var(--indigo);
+  border-bottom: 2px solid var(--indigo);
+  box-shadow: 0 0 0 1px rgba(99,102,241,0.35), inset 0 0 24px rgba(99,102,241,0.12);
+  cursor: grab; min-height: 14px;
+}
+.cap-bar:active { cursor: grabbing; }
+
+.cap-bar-lbl {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  font-size: 0.6rem; font-weight: 800; color: #fff;
+  background: var(--indigo); border-radius: 4px; padding: 2px 8px;
+  white-space: nowrap; pointer-events: none;
+}
+
+/* resize handles */
+.cap-hnd {
+  position: absolute; left: 0; right: 0; height: 12px;
+  background: transparent; z-index: 2;
+}
+.cap-hnd-t { top: -6px; cursor: n-resize; }
+.cap-hnd-b { bottom: -6px; cursor: s-resize; }
+
+/* scan overlay */
+.scan-overlay {
+  position: absolute; inset: 0; background: rgba(0,0,0,0.6);
+  display: none; align-items: center; justify-content: center;
+  flex-direction: column; z-index: 10;
+}
+.scan-overlay.on { display: flex; }
+.scan-line {
+  position: absolute; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--indigo), var(--pink), transparent);
+  animation: scanMove 1.4s linear infinite;
+}
+@keyframes scanMove { 0%{top:0} 100%{top:100%} }
+.scan-txt {
+  position: relative; z-index: 2;
+  font-size: 0.82rem; font-weight: 700; color: #fff;
+  background: rgba(0,0,0,0.7); padding: 0.5rem 1rem; border-radius: 0.5rem;
+}
+
+.cap-controls {
+  padding: 1rem 1.25rem; display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center;
+  border-top: 1px solid var(--border);
+}
+.cap-pill {
+  font-size: 0.7rem; font-weight: 700;
+  background: rgba(99,102,241,0.12); border: 1px solid rgba(99,102,241,0.25);
+  border-radius: 999px; padding: 0.3rem 0.85rem; color: var(--indigo);
+}
+.cap-apply {
+  margin-left: auto;
+  background: linear-gradient(135deg, var(--indigo), var(--pink));
+  color: #fff; border: none; border-radius: 0.6rem;
+  padding: 0.5rem 1.25rem; font-size: 0.82rem; font-weight: 800; cursor: pointer;
+  display: flex; align-items: center; gap: 0.5rem; transition: opacity 0.2s;
+}
+.cap-apply:hover:not(:disabled) { opacity: 0.85; }
+.cap-apply:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.cap-result { padding: 0 1.25rem 1rem; display: none; }
+.cap-result.visible { display: block; }
+
+@media(max-width:600px){
+  .settings-row { flex-direction: column; gap: 1rem; }
+  .input-group { flex-direction: column; }
+  .btn-run { width: 100%; justify-content: center; }
+  .cap-controls { flex-direction: column; align-items: stretch; }
+  .cap-apply { margin-left: 0; justify-content: center; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-icon"><i class="fa-solid fa-bolt"></i></div>
+  <h1>Viralio</h1>
+  <span class="header-sub">Pipeline Studio</span>
+  <span class="badge">All-in-One</span>
+</header>
+
+<main>
+  <div class="page-title">
+    <h2>YT → Voce → Cut → Caption</h2>
+    <p>Bagă un link YouTube și obții un voiceover profesional curățat în câteva minute.</p>
+  </div>
+
+  <div class="pipeline">
+
+    <!-- STEP 1 -->
+    <div class="step-card" id="card-1">
+      <div class="step-header">
+        <div class="step-num idle" id="num-1"><i class="fa-brands fa-youtube"></i></div>
+        <div class="step-info">
+          <h3>YouTube → Transcript în Română</h3>
+          <p>Whisper AI extrage și traduce automat transcriptul</p>
+        </div>
+        <span class="step-tag tag-idle" id="tag-1">Așteptare</span>
+      </div>
+      <div class="step-body">
+        <div class="input-group">
+          <input type="url" class="url-input" id="yt-url" placeholder="https://www.youtube.com/watch?v=..."/>
+        </div>
+        <div id="t-out" style="display:none">
+          <span class="lbl">Transcript Română</span>
+          <div class="text-box" id="t-text"></div>
+        </div>
+        <div id="err-1" style="display:none" class="err-banner">
+          <i class="fa-solid fa-triangle-exclamation" style="margin-top:2px"></i>
+          <span id="err-1-m"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step-connector"><div class="arrow-icon"><i class="fa-solid fa-arrow-down"></i></div></div>
+
+    <!-- STEP 2 -->
+    <div class="step-card" id="card-2">
+      <div class="step-header">
+        <div class="step-num idle" id="num-2"><i class="fa-solid fa-microphone-lines"></i></div>
+        <div class="step-info">
+          <h3>Generare Voce AI</h3>
+          <p>ElevenLabs / AI33 · Liam implicit · speed 0.7–1.2x</p>
+        </div>
+        <span class="step-tag tag-idle" id="tag-2">Așteptare</span>
+      </div>
+      <div class="step-body">
+        <div class="settings-row">
+          <div class="setting-item">
+            <span class="lbl">Voce</span>
+            <select id="voice-sel">
+              <option value="Liam"   selected>🎙️ Liam — Energetic, Social Media</option>
+              <option value="Roger">🎙️ Roger — Confident, Narration</option>
+              <option value="Drew">🎙️ Drew — Casual, Conversational</option>
+              <option value="Chris">🎙️ Chris — Relaxed, Natural</option>
+              <option value="Rachel">🎙️ Rachel — Calm, Audiobook</option>
+              <option value="Aria">🎙️ Aria — Expressive, Versatile</option>
+            </select>
+          </div>
+          <div class="setting-item">
+            <span class="lbl">Speed: <b id="spd-v">1.15</b>x</span>
+            <div class="range-wrap">
+              <span class="range-cap">0.7x</span>
+              <input type="range" id="spd-r" min="0.7" max="1.2" step="0.05" value="1.15"
+                oninput="document.getElementById('spd-v').textContent=parseFloat(this.value).toFixed(2)">
+              <span class="range-cap">1.2x</span>
+            </div>
+          </div>
+          <div class="setting-item">
+            <span class="lbl">Stabilitate: <b id="stb-v">0.50</b></span>
+            <div class="range-wrap">
+              <input type="range" id="stb-r" min="0" max="1" step="0.05" value="0.5"
+                oninput="document.getElementById('stb-v').textContent=parseFloat(this.value).toFixed(2)">
+            </div>
+          </div>
+        </div>
+        <div id="v-out" style="display:none">
+          <span class="lbl">Audio Generat</span>
+          <audio controls id="v-player"></audio>
+        </div>
+        <div id="err-2" style="display:none" class="err-banner">
+          <i class="fa-solid fa-triangle-exclamation" style="margin-top:2px"></i>
+          <span id="err-2-m"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step-connector"><div class="arrow-icon"><i class="fa-solid fa-arrow-down"></i></div></div>
+
+    <!-- STEP 3 -->
+    <div class="step-card" id="card-3">
+      <div class="step-header">
+        <div class="step-num idle" id="num-3"><i class="fa-solid fa-scissors"></i></div>
+        <div class="step-info">
+          <h3>Smart Audio Cut</h3>
+          <p>Elimină pauzele și spațiile moarte din voiceover</p>
+        </div>
+        <span class="step-tag tag-idle" id="tag-3">Așteptare</span>
+      </div>
+      <div class="step-body">
+        <div class="settings-row">
+          <div class="setting-item">
+            <span class="lbl">Pauză minimă: <b id="sil-v">0.20</b>s</span>
+            <div class="range-wrap">
+              <input type="range" id="sil-r" min="0.1" max="1.0" step="0.05" value="0.20"
+                oninput="document.getElementById('sil-v').textContent=parseFloat(this.value).toFixed(2)">
+            </div>
+          </div>
+          <div class="setting-item">
+            <span class="lbl">Threshold: <b id="thr-v">30</b>dB</span>
+            <div class="range-wrap">
+              <input type="range" id="thr-r" min="20" max="60" step="5" value="30"
+                oninput="document.getElementById('thr-v').textContent=this.value">
+            </div>
+          </div>
+        </div>
+        <div id="c-out" style="display:none">
+          <span class="lbl">Audio Curățat</span>
+          <audio controls id="c-player"></audio>
+        </div>
+        <div id="err-3" style="display:none" class="err-banner">
+          <i class="fa-solid fa-triangle-exclamation" style="margin-top:2px"></i>
+          <span id="err-3-m"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step-connector"><div class="arrow-icon"><i class="fa-solid fa-arrow-down"></i></div></div>
+
+    <!-- STEP 4 -->
+    <div class="step-card" id="card-4">
+      <div class="step-header">
+        <div class="step-num idle" id="num-4"><i class="fa-solid fa-closed-captioning"></i></div>
+        <div class="step-info">
+          <h3>Caption Remover
+            <span style="font-size:0.62rem;color:var(--text-muted);font-weight:600;
+              background:rgba(255,255,255,0.06);padding:2px 8px;border-radius:999px;margin-left:6px">OPȚIONAL</span>
+          </h3>
+          <p>Video-ul se încarcă automat — ajustezi bara cu drag, auto-detect inclusiv</p>
+        </div>
+        <span class="step-tag tag-skip" id="tag-4">Opțional</span>
+      </div>
+      <div class="step-body">
+
+        <label class="toggle-wrap" for="cap-toggle">
+          <input type="checkbox" id="cap-toggle" onchange="toggleCaption(this.checked)">
+          <div class="toggle-track"><div class="toggle-thumb"></div></div>
+          <div class="toggle-text">
+            <strong>Activează Caption Remover</strong>
+            <span>Video-ul YT se va încărca automat — selectezi bara cu drag sau auto-detect</span>
+          </div>
+        </label>
+
+        <!-- VIDEO PREVIEW + BAR -->
+        <div class="cap-canvas-wrap" id="cap-wrap">
+
+          <div class="scan-overlay" id="scan-ov">
+            <div class="scan-line"></div>
+            <div class="scan-txt"><i class="fa-solid fa-magnifying-glass" style="margin-right:6px"></i>Analizez frame-uri pentru subtitrări...</div>
+          </div>
+
+          <div class="cap-video-cont" id="cap-cont">
+            <video id="cap-vid" muted playsinline preload="metadata"></video>
+            <div class="cap-bar" id="cap-bar">
+              <div class="cap-hnd cap-hnd-t" id="hnd-t"></div>
+              <div class="cap-bar-lbl" id="bar-lbl">Caption zone</div>
+              <div class="cap-hnd cap-hnd-b" id="hnd-b"></div>
+            </div>
+          </div>
+
+          <div class="cap-controls">
+            <div class="cap-pill" id="cap-pill">Y: 70% · H: 20%</div>
+            <button class="btn-ghost" id="detect-btn" onclick="autoDetect()">
+              <i class="fa-solid fa-wand-magic-sparkles"></i> Auto-Detectează
+            </button>
+            <button class="cap-apply" id="apply-btn" onclick="applyCaption()">
+              <i class="fa-solid fa-scissors"></i> Elimină Subtitrările
+            </button>
+          </div>
+
+          <div class="cap-result" id="cap-result">
+            <a class="btn-success" id="cap-dl" href="#" download>
+              <i class="fa-solid fa-download"></i> Descarcă Video Fără Subtitrări
+            </a>
+          </div>
+
+          <div id="err-4" style="display:none;margin:0 1.25rem 1rem" class="err-banner">
+            <i class="fa-solid fa-triangle-exclamation" style="margin-top:2px"></i>
+            <span id="err-4-m"></span>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+
+  </div><!-- /pipeline -->
+
+  <!-- RUN -->
+  <div class="run-section">
+    <button class="btn-run" id="btn-run" onclick="runPipeline()">
+      <i class="fa-solid fa-play"></i> Pornește Pipeline
+    </button>
+    <p class="run-subtitle">
+      Pași: YT Transcript → Generare Voce → Smart Cut
+      <span id="cap-hint" style="display:none"> → Caption Remover</span>
+    </p>
+  </div>
+
+  <div class="global-log" id="glog">
+    <div class="log-line info">// Așteptând URL YouTube...</div>
+  </div>
+
+  <div class="result-card" id="result-card">
+    <h3><i class="fa-solid fa-circle-check" style="color:var(--success)"></i> Pipeline finalizat!</h3>
+    <div class="result-grid" id="result-grid"></div>
+  </div>
+
+</main>
+
+<script>
+/* ═══════════════════════════
+   VOICE MAP
+   ═══════════════════════════ */
+const VOICE_MAP = {
+  "Liam":   "TX3LPaxmHKxFdv7VOQHJ",  // Energetic, Social Media Creator
+  "Roger":  "CwhRBWXzGAHq8TQ4Fs17",  // Confident, Narration
+  "Drew":   "29vD33N1CtxCmqQRPOHJ",  // Casual, Conversational
+  "Chris":  "iP95p4xoKVk53GoZ742B",  // Relaxed, Natural
+  "Rachel": "21m00Tcm4TlvDq8ikWAM",  // Calm, Audiobook
+  "Aria":   "9BWtsMINqrJLrRacOk9x",  // Expressive, Versatile
+};
+
+/* ═══════════════════════════
+   STATE
+   ═══════════════════════════ */
+const BASE = '';
+const S = {
+  transcriptText: '',
+  voiceUrl:       '',
+  cutUrl:         '',
+  ytDlUrl:        '',
+  captionOn:      false,
+  running:        false,
+};
+
+/* caption bar state */
+let barTopPct = 70, barHPct = 20;
+let drag = { on:false, mode:null, startY:0, contH:0, initTop:0, initH:0 };
+
+/* ─── LOG ─── */
+function log(msg, t='info') {
+  const el = document.getElementById('glog');
+  const ts = new Date().toLocaleTimeString('ro-RO',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const d = document.createElement('div');
+  d.className = `log-line ${t}`;
+  d.textContent = `[${ts}] ${msg}`;
+  el.appendChild(d);
+  el.scrollTop = el.scrollHeight;
+}
+
+/* ─── STEP UI ─── */
+const ICONS = {1:'fa-brands fa-youtube',2:'fa-solid fa-microphone-lines',3:'fa-solid fa-scissors',4:'fa-solid fa-closed-captioning'};
+function setStep(n, s) {
+  const num  = document.getElementById(`num-${n}`);
+  const tag  = document.getElementById(`tag-${n}`);
+  const card = document.getElementById(`card-${n}`);
+  const ico  = {idle:`<i class="${ICONS[n]}"></i>`,running:'<i class="fa-solid fa-spinner fa-spin"></i>',done:'<i class="fa-solid fa-check"></i>',err:'<i class="fa-solid fa-xmark"></i>',skip:'<i class="fa-solid fa-minus"></i>'};
+  const tcl  = {idle:'tag-idle',running:'tag-running',done:'tag-done',err:'tag-err',skip:'tag-skip'};
+  const tlb  = {idle:'Așteptare',running:'Se procesează…',done:'Finalizat ✓',err:'Eroare',skip:'Omis'};
+  const ncl  = {idle:'idle',running:'running',done:'done',err:'err'};
+  num.className = `step-num ${ncl[s]||'idle'}`;
+  num.innerHTML = ico[s]||ico.idle;
+  tag.className = `step-tag ${tcl[s]}`;
+  tag.textContent = tlb[s]||s;
+  card.className = 'step-card'+(s==='running'?' active':s==='done'?' done':s==='err'?' error-state':'');
+}
+function showErr(n,m){ const e=document.getElementById(`err-${n}`); e.style.display='flex'; document.getElementById(`err-${n}-m`).textContent=m; }
+function hideErr(n){ document.getElementById(`err-${n}`).style.display='none'; }
+
+/* ─── CAPTION TOGGLE ─── */
+function toggleCaption(on) {
+  S.captionOn = on;
+  document.getElementById('cap-hint').style.display = on ? '' : 'none';
+  if (!on) { setStep(4,'skip'); document.getElementById('tag-4').textContent='Opțional'; }
+  else      { setStep(4,'idle'); if (S.ytDlUrl) loadCapVideo(BASE+S.ytDlUrl); }
+}
+
+/* ═══════════════════════════
+   CAPTION BAR — DRAG
+   ═══════════════════════════ */
+function renderBar() {
+  const cont = document.getElementById('cap-cont');
+  const bar  = document.getElementById('cap-bar');
+  const H    = cont.offsetHeight;
+  bar.style.top    = (barTopPct/100*H)+'px';
+  bar.style.height = Math.max(barHPct/100*H, 12)+'px';
+  const lbl = `Y:${barTopPct.toFixed(0)}% H:${barHPct.toFixed(0)}%`;
+  document.getElementById('cap-pill').textContent = `Y: ${barTopPct.toFixed(0)}% · H: ${barHPct.toFixed(0)}%`;
+  document.getElementById('bar-lbl').textContent = lbl;
+}
+
+function initDrag() {
+  const cont = document.getElementById('cap-cont');
+  const bar  = document.getElementById('cap-bar');
+  const hndT = document.getElementById('hnd-t');
+  const hndB = document.getElementById('hnd-b');
+
+  function start(e, mode) {
+    e.preventDefault();
+    drag.on = true; drag.mode = mode;
+    drag.startY  = e.touches ? e.touches[0].clientY : e.clientY;
+    drag.contH   = cont.offsetHeight;
+    drag.initTop = barTopPct; drag.initH = barHPct;
+  }
+
+  bar.addEventListener('mousedown',  e => { if(e.target===hndT||e.target===hndB) return; start(e,'move'); });
+  bar.addEventListener('touchstart', e => { if(e.target===hndT||e.target===hndB) return; start(e,'move'); },{passive:false});
+  hndT.addEventListener('mousedown',  e => start(e,'top'));
+  hndT.addEventListener('touchstart', e => start(e,'top'),{passive:false});
+  hndB.addEventListener('mousedown',  e => start(e,'bot'));
+  hndB.addEventListener('touchstart', e => start(e,'bot'),{passive:false});
+
+  function move(e) {
+    if (!drag.on) return;
+    const cy = e.touches ? e.touches[0].clientY : e.clientY;
+    const dp = ((cy - drag.startY) / drag.contH) * 100;
+    if (drag.mode === 'move') {
+      barTopPct = Math.min(Math.max(drag.initTop + dp, 0), 100 - barHPct);
+    } else if (drag.mode === 'top') {
+      const nT = drag.initTop + dp, nH = drag.initH - dp;
+      if (nH >= 2 && nT >= 0) { barTopPct = nT; barHPct = nH; }
+    } else {
+      const nH = drag.initH + dp;
+      if (nH >= 2 && barTopPct + nH <= 100) barHPct = nH;
+    }
+    renderBar();
+  }
+  function end() { drag.on = false; drag.mode = null; }
+
+  document.addEventListener('mousemove', move);
+  document.addEventListener('touchmove', move, {passive:false});
+  document.addEventListener('mouseup',   end);
+  document.addEventListener('touchend',  end);
+}
+
+function loadCapVideo(url) {
+  const vid  = document.getElementById('cap-vid');
+  const wrap = document.getElementById('cap-wrap');
+  vid.src = url; vid.load();
+  vid.addEventListener('loadedmetadata', () => {
+    renderBar();
+    setTimeout(() => autoDetect(), 300);
+  }, {once:true});
+  wrap.classList.add('visible');
+}
+
+/* ═══════════════════════════
+   AUTO-DETECT (canvas sampling)
+   ═══════════════════════════ */
+async function autoDetect() {
+  const vid = document.getElementById('cap-vid');
+  const btn = document.getElementById('detect-btn');
+  const ov  = document.getElementById('scan-ov');
+  if (!vid.src || vid.readyState < 1) { alert('Video nu e gata!'); return; }
+
+  btn.disabled = true;
+  ov.classList.add('on');
+  log('🔍 Auto-detectare zonă subtitrări...', 'run');
+
+  try {
+    const dur = vid.duration || 10;
+    // 8 frame-uri distribuite în 55–95% din durată (zona finală unde apar de obicei subtitrările)
+    const times = Array.from({length:8}, (_,i) => dur * (0.55 + i/7 * 0.40));
+
+    const cv  = document.createElement('canvas');
+    const ctx = cv.getContext('2d');
+    const ROWS = 80;
+    const acc  = new Float32Array(ROWS);  // acumulare scor per rând
+
+    for (const t of times) {
+      await seekTo(vid, t);
+      cv.width  = vid.videoWidth  || 640;
+      cv.height = vid.videoHeight || 360;
+      ctx.drawImage(vid, 0, 0, cv.width, cv.height);
+      const px = ctx.getImageData(0, 0, cv.width, cv.height).data;
+      const W = cv.width, H = cv.height;
+      const rowH = H / ROWS;
+
+      for (let r = 0; r < ROWS; r++) {
+        const y0 = Math.floor(r * rowH);
+        const y1 = Math.floor((r+1) * rowH);
+        let bri = 0, edge = 0, cnt = 0;
+        for (let y = y0; y < y1; y++) {
+          for (let x = 0; x < W; x++) {
+            const i  = (y*W+x)*4;
+            const lm = 0.299*px[i] + 0.587*px[i+1] + 0.114*px[i+2];
+            bri += lm;
+            if (x < W-1) {
+              const i2 = (y*W+x+1)*4;
+              const l2 = 0.299*px[i2]+0.587*px[i2+1]+0.114*px[i2+2];
+              edge += Math.abs(lm - l2);
+            }
+            cnt++;
+          }
+        }
+        // Score: mix de luminozitate medie + edge contrast (text = contrast ridicat)
+        acc[r] += (bri/cnt/255)*0.5 + (edge/cnt/50)*0.5;
+      }
+    }
+
+    // Căutăm peak în ultimele 60% din frame (jos)
+    const startR = Math.floor(ROWS * 0.40);
+    let maxS = 0, peakR = Math.floor(ROWS * 0.78);
+    for (let r = startR; r < ROWS; r++) {
+      if (acc[r] > maxS) { maxS = acc[r]; peakR = r; }
+    }
+
+    // Zona din jurul peak-ului ±3 rânduri
+    const zT = Math.max(0, peakR - 3);
+    const zB = Math.min(ROWS, peakR + 4);
+    barTopPct = Math.min(Math.max((zT / ROWS) * 100 - 1, 30), 88);
+    barHPct   = Math.min(Math.max(((zB - zT) / ROWS) * 100 + 3, 6), 28);
+
+    renderBar();
+    log(`✅ Zonă detectată: Y=${barTopPct.toFixed(0)}% · H=${barHPct.toFixed(0)}%`, 'ok');
+  } catch(e) {
+    log('⚠️ Auto-detect eșuat — ajustează manual bara.', 'err');
+    console.warn(e);
+  }
+
+  ov.classList.remove('on');
+  btn.disabled = false;
+}
+
+function seekTo(vid, t) {
+  return new Promise(r => {
+    const fn = () => { vid.removeEventListener('seeked', fn); r(); };
+    vid.addEventListener('seeked', fn);
+    vid.currentTime = t;
+  });
+}
+
+/* ─── APPLY CAPTION ─── */
+async function applyCaption() {
+  const btn = document.getElementById('apply-btn');
+  btn.disabled = true;
+  hideErr(4);
+  setStep(4,'running');
+  log('▶ STEP 4 — Eliminare subtitrări arse din video...', 'run');
+  try {
+    const blob = await fetch(BASE + S.ytDlUrl).then(r=>r.blob());
+    const f    = new File([blob], 'video.mp4', {type:'video/mp4'});
+    const fd   = new FormData();
+    fd.append('video', f);
+    fd.append('boxY', barTopPct.toFixed(1));
+    fd.append('boxH', barHPct.toFixed(1));
+    fd.append('boxX', '5');
+    fd.append('boxW', '90');
+
+    const r = await fetch(`${BASE}/api/remove-caption`, {method:'POST', body:fd, credentials:'include'});
+    const d = await r.json();
+    if (!r.ok || d.error) throw new Error(d.error || `HTTP ${r.status}`);
+
+    const url = BASE + d.downloadUrl;
+    document.getElementById('cap-dl').href = url;
+    document.getElementById('cap-dl').download = 'video_fara_subtitrari.mp4';
+    document.getElementById('cap-result').classList.add('visible');
+    if (d.creditsLeft !== undefined) log(`💳 Credite rămase: ${d.creditsLeft}`, 'info');
+    setStep(4,'done');
+    log('✅ STEP 4 — Subtitrări eliminate.', 'ok');
+  } catch(e) {
+    setStep(4,'err'); showErr(4, e.message);
+    log(`❌ STEP 4 — ${e.message}`, 'err');
+  }
+  btn.disabled = false;
+}
+
+/* ═══════════════════════════
+   PIPELINE
+   ═══════════════════════════ */
+async function runPipeline() {
+  if (S.running) return;
+  const url = document.getElementById('yt-url').value.trim();
+  if (!url) { alert('Introduceți un link YouTube!'); return; }
+
+  S.running = true;
+  document.getElementById('btn-run').disabled = true;
+  document.getElementById('result-card').classList.remove('visible');
+  document.getElementById('result-grid').innerHTML = '';
+  [1,2,3].forEach(n => { hideErr(n); setStep(n,'idle'); });
+  document.getElementById('cap-wrap').classList.remove('visible');
+  document.getElementById('cap-result').classList.remove('visible');
+
+  const items = [];
+
+  /* STEP 1 */
+  try {
+    setStep(1,'running');
+    log('▶ STEP 1 — Descărcare & transcriere YouTube...', 'run');
+    const r = await fetch(`${BASE}/api/process-yt`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({url, resolution:'1080'}), credentials:'include'
+    });
+    const d = await r.json();
+    if (!r.ok || d.error) throw new Error(d.error || `HTTP ${r.status}`);
+    S.transcriptText = d.translatedText || d.originalText || '';
+    S.ytDlUrl        = d.downloadUrl || '';
+    document.getElementById('t-text').textContent = S.transcriptText;
+    document.getElementById('t-out').style.display = 'block';
+    if (d.creditsLeft !== undefined) log(`💳 Credite: ${d.creditsLeft}`, 'info');
+    if (d.downloadUrl) items.push({label:'Video Original (1080p)', url:BASE+d.downloadUrl, icon:'fa-film'});
+    setStep(1,'done');
+    log('✅ STEP 1 — Transcript în română obținut.', 'ok');
+  } catch(e) {
+    setStep(1,'err'); showErr(1,e.message); log(`❌ STEP 1 — ${e.message}`,'err');
+    finalize(items); return;
+  }
+
+  /* STEP 2 */
+  try {
+    setStep(2,'running');
+    log('▶ STEP 2 — Generare voce AI (Liam)...', 'run');
+    const vName = document.getElementById('voice-sel').value;
+    const r = await fetch(`${BASE}/api/generate`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        text: S.transcriptText, voice: vName, voiceId: VOICE_MAP[vName],
+        speed: parseFloat(document.getElementById('spd-r').value),
+        stability: parseFloat(document.getElementById('stb-r').value),
+        similarity_boost: 0.75,
+      }),
+      credentials:'include'
+    });
+    const d = await r.json();
+    if (!r.ok || d.error) throw new Error(d.error || `HTTP ${r.status}`);
+    S.voiceUrl = BASE + d.audioUrl;
+    document.getElementById('v-player').src = S.voiceUrl;
+    document.getElementById('v-out').style.display = 'block';
+    if (d.remaining_chars !== undefined) log(`🎙️ Caractere rămase: ${d.remaining_chars}`, 'info');
+    items.push({label:'Voiceover (.mp3)', url:S.voiceUrl, icon:'fa-microphone'});
+    setStep(2,'done');
+    log('✅ STEP 2 — Voiceover generat.', 'ok');
+  } catch(e) {
+    setStep(2,'err'); showErr(2,e.message); log(`❌ STEP 2 — ${e.message}`,'err');
+    finalize(items); return;
+  }
+
+  /* STEP 3 */
+  try {
+    setStep(3,'running');
+    log('▶ STEP 3 — Smart Cut (eliminare pauze)...', 'run');
+    const ab = await fetch(S.voiceUrl).then(r=>r.blob());
+    const af = new File([ab],'voice.mp3',{type:'audio/mpeg'});
+    const fd = new FormData();
+    fd.append('file', af);
+    fd.append('minSilence', document.getElementById('sil-r').value);
+    fd.append('threshold', `-${document.getElementById('thr-r').value}dB`);
+    const r = await fetch(`${BASE}/api/smart-cut`, {method:'POST', body:fd, credentials:'include'});
+    const d = await r.json();
+    if (!r.ok || d.error) throw new Error(d.error || `HTTP ${r.status}`);
+    S.cutUrl = BASE + d.downloadUrl;
+    document.getElementById('c-player').src = S.cutUrl;
+    document.getElementById('c-out').style.display = 'block';
+    if (d.creditsLeft !== undefined) log(`💳 Credite: ${d.creditsLeft}`, 'info');
+    items.push({label:'Audio Curățat (.mp3)', url:S.cutUrl, icon:'fa-scissors'});
+    setStep(3,'done');
+    log('✅ STEP 3 — Pauze eliminate.', 'ok');
+  } catch(e) {
+    setStep(3,'err'); showErr(3,e.message); log(`❌ STEP 3 — ${e.message}`,'err');
+    finalize(items); return;
+  }
+
+  /* STEP 4 */
+  if (S.captionOn && S.ytDlUrl) {
+    log('📺 STEP 4 — Încarc video — ajustează bara violet și apasă Elimină.', 'run');
+    setStep(4,'idle');
+    loadCapVideo(BASE + S.ytDlUrl);
+  } else {
+    setStep(4, S.captionOn ? 'idle' : 'skip');
+    log('⏭ STEP 4 — Caption Remover omis.', 'info');
+  }
+
+  finalize(items);
+}
+
+function finalize(items) {
+  S.running = false;
+  document.getElementById('btn-run').disabled = false;
+  if (!items.length) return;
+  const g = document.getElementById('result-grid');
+  g.innerHTML = '';
+  items.forEach(it => {
+    g.innerHTML += `
+      <div class="dl-item">
+        <div class="dl-label"><i class="fa-solid ${it.icon}"></i> ${it.label}</div>
+        <a class="btn-success" href="${it.url}" download style="font-size:.78rem;padding:.5rem 1rem;margin-top:.25rem">
+          <i class="fa-solid fa-download"></i> Descarcă
+        </a>
+      </div>`;
+  });
+  document.getElementById('result-card').classList.add('visible');
+  log('🎉 Pipeline finalizat! Verifică fișierele de mai jos.', 'ok');
+}
+
+/* INIT */
+window.addEventListener('DOMContentLoaded', () => {
+  initDrag();
+  toggleCaption(false);
+});
+</script>
+</body>
+</html>
