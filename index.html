@@ -637,9 +637,19 @@ const VOICE_MAP = {
 };
 
 /* ═══════════════════════════
+   SERVICE URLs
+   ═══════════════════════════ */
+const SERVICES = {
+  downloader: 'https://downloader.viralio.ro',
+  voice:      'https://voice.viralio.ro',
+  cut:        'https://cut.viralio.ro',
+  caption:    'https://caption.viralio.ro',
+};
+
+/* ═══════════════════════════
    STATE
    ═══════════════════════════ */
-const BASE = '';
+const BASE = ''; // păstrat pentru compatibilitate
 const S = {
   transcriptText: '',
   voiceUrl:       '',
@@ -648,6 +658,14 @@ const S = {
   captionOn:      false,
   running:        false,
 };
+
+/* ── Auth token helper ── */
+function getToken() {
+  return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+}
+function authHeaders(extra) {
+  return { 'Authorization': 'Bearer ' + getToken(), ...extra };
+}
 
 /* caption bar state */
 let barTopPct = 70, barHPct = 20;
@@ -854,7 +872,7 @@ async function applyCaption() {
   setStep(4,'running');
   log('▶ STEP 4 — Eliminare subtitrări arse din video...', 'run');
   try {
-    const blob = await fetch(BASE + S.ytDlUrl).then(r=>r.blob());
+    const blob = await fetch(S.ytDlUrl, {headers: authHeaders()}).then(r=>r.blob());
     const f    = new File([blob], 'video.mp4', {type:'video/mp4'});
     const fd   = new FormData();
     fd.append('video', f);
@@ -863,11 +881,11 @@ async function applyCaption() {
     fd.append('boxX', '5');
     fd.append('boxW', '90');
 
-    const r = await fetch(`${BASE}/api/remove-caption`, {method:'POST', body:fd, credentials:'include'});
+    const r = await fetch(`${SERVICES.caption}/api/remove-caption`, {method:'POST', headers: authHeaders(), body:fd});
     const d = await r.json();
     if (!r.ok || d.error) throw new Error(d.error || `HTTP ${r.status}`);
 
-    const url = BASE + d.downloadUrl;
+    const url = SERVICES.caption + d.downloadUrl;
     document.getElementById('cap-dl').href = url;
     document.getElementById('cap-dl').download = 'video_fara_subtitrari.mp4';
     document.getElementById('cap-result').classList.add('visible');
@@ -903,18 +921,18 @@ async function runPipeline() {
   try {
     setStep(1,'running');
     log('▶ STEP 1 — Descărcare & transcriere YouTube...', 'run');
-    const r = await fetch(`${BASE}/api/process-yt`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({url, resolution:'1080'}), credentials:'include'
+    const r = await fetch(`${SERVICES.downloader}/api/process-yt`, {
+      method:'POST', headers: authHeaders({'Content-Type':'application/json'}),
+      body: JSON.stringify({url, resolution:'1080'})
     });
     const d = await r.json();
     if (!r.ok || d.error) throw new Error(d.error || `HTTP ${r.status}`);
     S.transcriptText = d.translatedText || d.originalText || '';
-    S.ytDlUrl        = d.downloadUrl || '';
+    S.ytDlUrl        = d.downloadUrl ? (SERVICES.downloader + d.downloadUrl) : '';
     document.getElementById('t-text').textContent = S.transcriptText;
     document.getElementById('t-out').style.display = 'block';
     if (d.creditsLeft !== undefined) log(`💳 Credite: ${d.creditsLeft}`, 'info');
-    if (d.downloadUrl) items.push({label:'Video Original (1080p)', url:BASE+d.downloadUrl, icon:'fa-film'});
+    if (d.downloadUrl) items.push({label:'Video Original (1080p)', url:SERVICES.downloader+d.downloadUrl, icon:'fa-film'});
     setStep(1,'done');
     log('✅ STEP 1 — Transcript în română obținut.', 'ok');
   } catch(e) {
@@ -927,19 +945,18 @@ async function runPipeline() {
     setStep(2,'running');
     log('▶ STEP 2 — Generare voce AI (Liam)...', 'run');
     const vName = document.getElementById('voice-sel').value;
-    const r = await fetch(`${BASE}/api/generate`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
+    const r = await fetch(`${SERVICES.voice}/api/generate`, {
+      method:'POST', headers: authHeaders({'Content-Type':'application/json'}),
       body: JSON.stringify({
         text: S.transcriptText, voice: vName, voiceId: VOICE_MAP[vName],
         speed: parseFloat(document.getElementById('spd-r').value),
         stability: parseFloat(document.getElementById('stb-r').value),
         similarity_boost: 0.75,
-      }),
-      credentials:'include'
+      })
     });
     const d = await r.json();
     if (!r.ok || d.error) throw new Error(d.error || `HTTP ${r.status}`);
-    S.voiceUrl = BASE + d.audioUrl;
+    S.voiceUrl = SERVICES.voice + d.audioUrl;
     document.getElementById('v-player').src = S.voiceUrl;
     document.getElementById('v-out').style.display = 'block';
     if (d.remaining_chars !== undefined) log(`🎙️ Caractere rămase: ${d.remaining_chars}`, 'info');
@@ -961,10 +978,10 @@ async function runPipeline() {
     fd.append('file', af);
     fd.append('minSilence', document.getElementById('sil-r').value);
     fd.append('threshold', `-${document.getElementById('thr-r').value}dB`);
-    const r = await fetch(`${BASE}/api/smart-cut`, {method:'POST', body:fd, credentials:'include'});
+    const r = await fetch(`${SERVICES.cut}/api/smart-cut`, {method:'POST', headers: authHeaders(), body:fd});
     const d = await r.json();
     if (!r.ok || d.error) throw new Error(d.error || `HTTP ${r.status}`);
-    S.cutUrl = BASE + d.downloadUrl;
+    S.cutUrl = SERVICES.cut + d.downloadUrl;
     document.getElementById('c-player').src = S.cutUrl;
     document.getElementById('c-out').style.display = 'block';
     if (d.creditsLeft !== undefined) log(`💳 Credite: ${d.creditsLeft}`, 'info');
@@ -980,7 +997,7 @@ async function runPipeline() {
   if (S.captionOn && S.ytDlUrl) {
     log('📺 STEP 4 — Încarc video — ajustează bara violet și apasă Elimină.', 'run');
     setStep(4,'idle');
-    loadCapVideo(BASE + S.ytDlUrl);
+    loadCapVideo(S.ytDlUrl);
   } else {
     setStep(4, S.captionOn ? 'idle' : 'skip');
     log('⏭ STEP 4 — Caption Remover omis.', 'info');
