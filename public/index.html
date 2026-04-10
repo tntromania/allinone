@@ -3,1226 +3,680 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Viralio Pipeline | Auto Studio</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<title>Auto Pipeline | Viralio</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --bg:#080a14;--surface:#0d0f1a;--surface2:#12152b;
-  --border:rgba(255,255,255,0.07);--border-active:rgba(99,102,241,0.45);
-  --indigo:#6366f1;--indigo-dark:#4f46e5;--pink:#ec4899;
-  --green:#10b981;--text:#f1f5f9;--text-muted:#475569;--text-dim:#334155;
-  --radius:1.25rem;
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
+<link rel="shortcut icon" href="/assets/favicon.ico">
+<script>
+tailwind.config = {
+  theme: { extend: { fontFamily: { sans: ['Inter','sans-serif'] }, colors: { viralio: { 50:'#eef2ff',100:'#e0e7ff',500:'#6366f1',600:'#4f46e5',900:'#312e81',accent:'#ec4899' } } } }
 }
-html,body{min-height:100vh;background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;overflow-x:hidden}
-body::before{content:'';position:fixed;inset:0;opacity:.03;pointer-events:none;z-index:0;
-  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  background-size:200px 200px}
-.glow-1{position:fixed;top:-200px;left:-200px;width:600px;height:600px;border-radius:50%;background:radial-gradient(circle,rgba(99,102,241,.12),transparent 70%);pointer-events:none;z-index:0}
-.glow-2{position:fixed;bottom:-200px;right:-100px;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle,rgba(236,72,153,.08),transparent 70%);pointer-events:none;z-index:0}
+</script>
+<style>
+  body { background:#F8FAFC; overflow-x:hidden; font-family:'Inter',sans-serif; }
+  .bg-gradient-viralio { background: linear-gradient(135deg,#4f46e5 0%,#ec4899 100%); }
+  ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#f1f5f9}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:10px}
 
-/* NAV */
-nav{position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;
-  padding:1rem 2rem;border-bottom:1px solid var(--border);
-  background:rgba(8,10,20,.85);backdrop-filter:blur(20px)}
-.nav-brand{display:flex;align-items:center;gap:.75rem;text-decoration:none}
-.nav-logo{width:2.5rem;height:2.5rem;border-radius:.75rem;
-  background:linear-gradient(135deg,var(--indigo-dark),var(--pink));
-  display:flex;align-items:center;justify-content:center;color:#fff;font-size:1rem;
-  box-shadow:0 6px 20px rgba(99,102,241,.4)}
-.nav-title{font-family:'Syne',sans-serif;font-size:1.15rem;font-weight:800;color:var(--text);letter-spacing:-.02em}
-.nav-title span{color:var(--text-muted);font-weight:400;font-size:.8rem;margin-left:.5rem}
-#user-pill{display:none;align-items:center;gap:.6rem;
-  background:rgba(255,255,255,.04);border:1px solid var(--border);
-  border-radius:3rem;padding:.35rem .85rem .35rem .45rem}
-#user-pill img{width:2rem;height:2rem;border-radius:50%;border:1px solid var(--border)}
-#user-pill .uname{font-size:.78rem;font-weight:700;color:var(--text)}
-#user-pill .ucreds{font-size:.65rem;font-weight:700;color:var(--indigo)}
-.btn-logout{background:none;border:none;color:var(--text-muted);cursor:pointer;padding:.3rem;border-radius:.4rem;transition:.2s;font-size:.8rem}
-.btn-logout:hover{color:#f87171;background:rgba(239,68,68,.1)}
-#login-btn{padding:.55rem 1.25rem;background:linear-gradient(135deg,var(--indigo-dark),var(--indigo));
-  color:#fff;border:none;border-radius:.75rem;cursor:pointer;font-weight:700;font-size:.85rem;
-  box-shadow:0 4px 14px rgba(99,102,241,.4);transition:.2s;font-family:'DM Sans',sans-serif}
-#login-btn:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(99,102,241,.5)}
+  /* LOGIN MODAL */
+  #login-modal{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);backdrop-filter:blur(8px);z-index:99999;align-items:center;justify-content:center;opacity:0;transition:.3s}
+  #login-modal.show{display:flex;opacity:1}
+  .modal-content{background:#fff;border-radius:28px;padding:40px;text-align:center;max-width:420px;width:90%;transform:translateY(20px);transition:.4s;position:relative}
+  #login-modal.show .modal-content{transform:translateY(0)}
 
-/* MAIN LAYOUT */
-.main{max-width:1000px;margin:0 auto;padding:2.5rem 1.5rem 6rem;position:relative;z-index:1}
-.page-title{font-family:'Syne',sans-serif;font-size:clamp(1.8rem,4vw,2.6rem);font-weight:800;
-  letter-spacing:-.04em;line-height:1.15;margin-bottom:.5rem;text-align:center}
-.page-title .grad{background:linear-gradient(135deg,var(--indigo),var(--pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-.page-sub{color:var(--text-muted);font-size:.95rem;font-weight:500;text-align:center;margin-bottom:2.5rem}
+  /* STEP CARD */
+  .step-card{transition:all .3s ease}
+  .step-card.active{border-color:#6366f1!important;box-shadow:0 0 0 3px rgba(99,102,241,.1)}
+  .step-card.done{border-color:#10b981!important}
+  .step-card.error{border-color:#f87171!important}
 
-/* TABS (Auto Pipeline / Caption Remover) */
-.tabs{display:flex;gap:.5rem;background:rgba(255,255,255,.03);border:1px solid var(--border);
-  border-radius:1rem;padding:.35rem;margin-bottom:2rem;width:fit-content;margin-left:auto;margin-right:auto}
-.tab{padding:.55rem 1.35rem;border-radius:.7rem;font-size:.82rem;font-weight:700;cursor:pointer;
-  border:none;background:none;color:var(--text-muted);transition:.2s;font-family:'DM Sans',sans-serif}
-.tab.active{background:linear-gradient(135deg,var(--indigo-dark),var(--indigo));color:#fff;
-  box-shadow:0 4px 14px rgba(99,102,241,.35)}
+  /* VOICE GRID */
+  .vcard{transition:all .2s;cursor:pointer;border:1.5px solid #e2e8f0;border-radius:14px;padding:10px;background:#f8fafc}
+  .vcard:hover{border-color:#6366f1;background:#eef2ff;transform:translateY(-2px)}
+  .vcard.selected{border-color:#6366f1!important;background:#eef2ff!important;box-shadow:0 0 0 2px rgba(99,102,241,.25)!important}
 
-/* CARDS */
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;
-  box-shadow:0 20px 60px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.04);margin-bottom:1.25rem}
-.card-header{padding:1.25rem 1.75rem 1rem;border-bottom:1px solid var(--border);
-  background:linear-gradient(180deg,rgba(99,102,241,.06),transparent);
-  display:flex;align-items:center;gap:.85rem;position:relative}
-.card-header::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;
-  background:linear-gradient(90deg,transparent,rgba(99,102,241,.6),rgba(236,72,153,.4),transparent)}
-.card-icon{width:2.5rem;height:2.5rem;border-radius:.8rem;flex-shrink:0;
-  background:linear-gradient(135deg,var(--indigo-dark),var(--pink));
-  display:flex;align-items:center;justify-content:center;color:#fff;font-size:.9rem;
-  box-shadow:0 6px 20px rgba(99,102,241,.4)}
-.card-icon.green{background:linear-gradient(135deg,#059669,#10b981);box-shadow:0 6px 20px rgba(16,185,129,.4)}
-.card-icon.blue{background:linear-gradient(135deg,#0284c7,#38bdf8);box-shadow:0 6px 20px rgba(14,165,233,.4)}
-.card-icon.amber{background:linear-gradient(135deg,#d97706,#fbbf24);box-shadow:0 6px 20px rgba(245,158,11,.4)}
-.card-title{font-family:'Syne',sans-serif;font-size:1rem;font-weight:800;color:var(--text);letter-spacing:-.02em}
-.card-sub{font-size:.68rem;color:var(--text-muted);margin-top:.1rem}
-.card-body{padding:1.5rem 1.75rem}
+  /* SPINNER */
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .spin{animation:spin .8s linear infinite;display:inline-block}
 
-/* STEP BADGE */
-.step-badge{display:inline-flex;align-items:center;gap:.35rem;
-  font-size:.62rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
-  padding:.25rem .6rem;border-radius:.4rem;margin-left:auto;flex-shrink:0}
-.badge-wait{background:rgba(255,255,255,.06);color:var(--text-dim);border:1px solid var(--border)}
-.badge-active{background:rgba(99,102,241,.15);color:#818cf8;border:1px solid rgba(99,102,241,.25)}
-.badge-running{background:rgba(245,158,11,.15);color:#fbbf24;border:1px solid rgba(245,158,11,.25)}
-.badge-done{background:rgba(16,185,129,.15);color:#6ee7b7;border:1px solid rgba(16,185,129,.25)}
-.badge-error{background:rgba(239,68,68,.12);color:#fca5a5;border:1px solid rgba(239,68,68,.2)}
+  /* PULSE */
+  @keyframes pulse-ring{0%,100%{opacity:.5}50%{opacity:1}}
+  .pulse{animation:pulse-ring 1.5s ease-in-out infinite}
 
-/* FIELDS */
-.field{display:flex;flex-direction:column;gap:.45rem;margin-bottom:1.1rem}
-.field label{font-size:.68rem;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em}
-.field input,.field textarea,.field select{
-  width:100%;padding:.85rem 1rem;background:rgba(255,255,255,.04);
-  border:1.5px solid var(--border);border-radius:.875rem;
-  font-size:.9rem;font-weight:500;color:var(--text);outline:none;
-  transition:.2s;font-family:'DM Sans',sans-serif;-webkit-appearance:none}
-.field input:focus,.field textarea:focus,.field select:focus{
-  border-color:rgba(99,102,241,.5);background:rgba(99,102,241,.04);
-  box-shadow:0 0 0 3px rgba(99,102,241,.1)}
-.field input::placeholder,.field textarea::placeholder{color:var(--text-dim)}
-.field select option{background:#1e2035}
-.field textarea{resize:vertical;min-height:110px;line-height:1.6}
-.input-wrap{position:relative}
-.input-icon{position:absolute;left:1rem;top:50%;transform:translateY(-50%);color:var(--text-dim);font-size:.85rem;pointer-events:none}
-.input-icon+input{padding-left:2.75rem}
+  /* RANGE */
+  input[type=range]{-webkit-appearance:none;width:100%;height:4px;border-radius:99px;background:#e2e8f0;outline:none;cursor:pointer}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#ec4899);box-shadow:0 2px 6px rgba(99,102,241,.4);cursor:pointer}
 
-/* BUTTONS */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;
-  padding:.8rem 1.5rem;border-radius:.875rem;font-weight:700;font-size:.9rem;
-  cursor:pointer;border:none;font-family:'DM Sans',sans-serif;transition:.2s}
-.btn-primary{background:linear-gradient(135deg,var(--indigo-dark),var(--indigo));color:#fff;
-  box-shadow:0 4px 14px rgba(99,102,241,.4)}
-.btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(99,102,241,.5)}
-.btn-primary:disabled{opacity:.5;transform:none;cursor:not-allowed}
-.btn-ghost{background:rgba(255,255,255,.04);color:var(--text-muted);border:1.5px solid var(--border)}
-.btn-ghost:hover{border-color:var(--border-active);color:var(--text)}
-.btn-success{background:linear-gradient(135deg,#059669,#10b981);color:#fff;box-shadow:0 4px 14px rgba(16,185,129,.3)}
-.btn-full{width:100%}
-.btn-sm{padding:.5rem 1rem;font-size:.8rem}
+  /* RIBBON */
+  .ribbon{background:linear-gradient(135deg,#4f46e5,#ec4899);color:#fff;border-radius:14px;padding:12px 18px}
 
-/* SLIDER */
-.slider-group{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-bottom:1.1rem}
-.slider-field{display:flex;flex-direction:column;gap:.4rem}
-.slider-field label{font-size:.68rem;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;display:flex;justify-content:space-between}
-.slider-field label span{color:var(--indigo);font-size:.75rem}
-input[type=range]{-webkit-appearance:none;width:100%;height:4px;border-radius:99px;background:rgba(255,255,255,.08);outline:none;cursor:pointer}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:linear-gradient(135deg,var(--indigo),var(--pink));box-shadow:0 2px 8px rgba(99,102,241,.5);cursor:pointer}
+  /* STATUS BOXES */
+  .status-info{background:#eef2ff;border:1px solid #c7d2fe;color:#4338ca;border-radius:12px;padding:12px 14px}
+  .status-success{background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;border-radius:12px;padding:12px 14px}
+  .status-error{background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:12px;padding:12px 14px}
 
-/* VOICE GRID */
-.voice-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.5rem;margin-bottom:1.1rem}
-@media(min-width:480px){.voice-grid{grid-template-columns:repeat(3,1fr)}}
-@media(min-width:700px){.voice-grid{grid-template-columns:repeat(5,1fr)}}
-.vcard{border:1.5px solid var(--border);border-radius:.9rem;padding:.75rem .7rem .65rem;
-  cursor:pointer;background:rgba(255,255,255,.02);transition:.2s cubic-bezier(.16,1,.3,1);
-  position:relative;overflow:hidden;display:flex;flex-direction:column;gap:.35rem}
-.vcard:hover{border-color:rgba(99,102,241,.35);background:rgba(99,102,241,.07);transform:translateY(-2px)}
-.vcard.selected{border-color:var(--indigo)!important;background:rgba(99,102,241,.12)!important;box-shadow:0 0 0 2px rgba(99,102,241,.3)!important}
-.vcard.selected::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--indigo),var(--pink));border-radius:.9rem .9rem 0 0}
-.vcard-top{display:flex;align-items:center;gap:.45rem}
-.vavatar{width:2rem;height:2rem;flex-shrink:0;border-radius:.6rem;display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:900;color:#fff;box-shadow:0 4px 10px rgba(0,0,0,.4)}
-.vcard-name{font-size:.75rem;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.vgender{font-size:.5rem;font-weight:700;padding:.1rem .35rem;border-radius:.3rem;text-transform:uppercase;letter-spacing:.04em;display:inline-block;margin-top:.08rem}
-.vg-m{background:rgba(59,130,246,.15);color:#60a5fa}
-.vg-f{background:rgba(236,72,153,.15);color:#f472b6}
-.vg-s{background:rgba(245,158,11,.15);color:#fbbf24}
-.vcard-style{font-size:.56rem;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-
-/* PIPELINE FLOW VISUAL */
-.pipeline-flow{display:flex;flex-direction:column;gap:0}
-.pipe-step{border:1.5px solid var(--border);border-radius:var(--radius);background:var(--surface);
-  overflow:hidden;transition:.35s}
-.pipe-step.ps-active{border-color:rgba(99,102,241,.4);box-shadow:0 0 0 1px rgba(99,102,241,.15)}
-.pipe-step.ps-done{border-color:rgba(16,185,129,.3)}
-.pipe-step.ps-error{border-color:rgba(239,68,68,.3)}
-.pipe-step-header{display:flex;align-items:center;gap:.75rem;padding:1rem 1.25rem;cursor:default}
-.pipe-step-icon{width:2.25rem;height:2.25rem;border-radius:.65rem;flex-shrink:0;
-  display:flex;align-items:center;justify-content:center;color:#fff;font-size:.8rem;
-  background:rgba(255,255,255,.08);border:1px solid var(--border);transition:.3s}
-.ps-active .pipe-step-icon{background:linear-gradient(135deg,var(--indigo-dark),var(--indigo));border-color:transparent;box-shadow:0 4px 12px rgba(99,102,241,.4)}
-.ps-done .pipe-step-icon{background:linear-gradient(135deg,#059669,#10b981);border-color:transparent;box-shadow:0 4px 12px rgba(16,185,129,.4)}
-.ps-error .pipe-step-icon{background:linear-gradient(135deg,#dc2626,#ef4444);border-color:transparent}
-.pipe-step-info{flex:1}
-.pipe-step-title{font-family:'Syne',sans-serif;font-size:.9rem;font-weight:800;color:var(--text-dim);transition:.3s}
-.ps-active .pipe-step-title,.ps-done .pipe-step-title{color:var(--text)}
-.pipe-step-sub{font-size:.67rem;color:var(--text-dim);margin-top:.1rem;transition:.3s}
-.ps-active .pipe-step-sub,.ps-done .pipe-step-sub{color:var(--text-muted)}
-.pipe-step-body{padding:0 1.25rem;max-height:0;overflow:hidden;transition:max-height .4s ease,padding .3s}
-.ps-active .pipe-step-body,.ps-done .pipe-step-body{max-height:400px;padding:0 1.25rem 1.25rem}
-.pipe-connector{display:flex;align-items:center;justify-content:center;height:1.5rem;color:var(--text-dim);font-size:.75rem;opacity:.4}
-.pipe-connector.done{color:var(--green);opacity:.8}
-
-/* PROGRESS BAR */
-.progress-bar{height:3px;background:rgba(255,255,255,.06);border-radius:99px;overflow:hidden;margin:.6rem 0}
-.progress-fill{height:100%;background:linear-gradient(90deg,var(--indigo),var(--pink));border-radius:99px;transition:width .4s ease}
-
-/* STATUS */
-.status-box{border-radius:.75rem;padding:.85rem 1rem;display:flex;align-items:flex-start;gap:.65rem;
-  font-size:.8rem;font-weight:500;margin-bottom:.75rem;border:1px solid}
-.status-info{background:rgba(99,102,241,.08);border-color:rgba(99,102,241,.2);color:#a5b4fc}
-.status-success{background:rgba(16,185,129,.08);border-color:rgba(16,185,129,.2);color:#6ee7b7}
-.status-error{background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.2);color:#fca5a5}
-.status-warn{background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.2);color:#fcd34d}
-.status-icon{font-size:.9rem;flex-shrink:0}
-
-/* RESULT */
-.result-card{background:rgba(16,185,129,.05);border:1px solid rgba(16,185,129,.2);
-  border-radius:.875rem;padding:1rem 1.25rem;margin-top:.75rem}
-.result-card h4{font-family:'Syne',sans-serif;font-size:.82rem;font-weight:800;color:var(--text);margin-bottom:.65rem}
-.result-actions{display:flex;gap:.5rem;flex-wrap:wrap}
-audio{width:100%;margin-bottom:.65rem;border-radius:.5rem;filter:invert(1) hue-rotate(180deg);opacity:.85}
-
-/* TRANSCRIPT */
-.transcript-box{background:rgba(255,255,255,.025);border:1px dashed rgba(255,255,255,.08);
-  border-radius:.75rem;padding:1rem;font-size:.8rem;color:var(--text-muted);
-  line-height:1.7;max-height:180px;overflow-y:auto}
-
-/* UPLOAD */
-.upload-zone{border:2px dashed rgba(255,255,255,.1);border-radius:var(--radius);
-  padding:2rem 1.5rem;text-align:center;cursor:pointer;transition:.2s;background:rgba(255,255,255,.02)}
-.upload-zone:hover,.upload-zone.drag{border-color:rgba(99,102,241,.5);background:rgba(99,102,241,.05)}
-.upload-zone-icon{font-size:1.75rem;color:var(--text-dim);margin-bottom:.65rem}
-.upload-zone-text{font-size:.85rem;color:var(--text-muted);font-weight:500}
-.upload-zone-sub{font-size:.7rem;color:var(--text-dim);margin-top:.3rem}
-input[type=file]{display:none}
-
-/* CANVAS */
-#cap-wrap{position:relative;display:inline-block;width:100%;max-width:100%}
-#cap-preview{max-width:100%;max-height:300px;border-radius:.875rem;display:block;border:1px solid var(--border)}
-#cap-canvas{position:absolute;top:0;left:0;width:100%;height:100%;border-radius:.875rem}
-.cap-coords{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:.5rem;margin-top:.75rem}
-.cap-coords input{padding:.5rem .75rem;background:rgba(255,255,255,.04);border:1.5px solid var(--border);
-  border-radius:.6rem;font-size:.78rem;color:var(--text);outline:none;font-family:'DM Sans',sans-serif;text-align:center}
-.cap-coords input:focus{border-color:rgba(236,72,153,.5)}
-
-/* OVERALL STATUS RIBBON */
-.pipeline-ribbon{background:linear-gradient(135deg,rgba(99,102,241,.1),rgba(236,72,153,.06));
-  border:1px solid rgba(99,102,241,.2);border-radius:1rem;padding:1.25rem 1.5rem;
-  display:flex;align-items:center;gap:1rem;margin-bottom:1.25rem}
-.ribbon-icon{width:2.75rem;height:2.75rem;border-radius:.8rem;flex-shrink:0;
-  background:linear-gradient(135deg,var(--indigo-dark),var(--pink));
-  display:flex;align-items:center;justify-content:center;color:#fff;font-size:1rem}
-.ribbon-text{flex:1}
-.ribbon-title{font-family:'Syne',sans-serif;font-size:.95rem;font-weight:800;color:var(--text)}
-.ribbon-sub{font-size:.72rem;color:var(--text-muted);margin-top:.15rem}
-.ribbon-step{font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;color:var(--indigo);flex-shrink:0}
-
-/* SPINNER */
-@keyframes spin{to{transform:rotate(360deg)}}
-.spinner{display:inline-block;width:.9rem;height:.9rem;border:2px solid rgba(255,255,255,.2);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
-.pulse{animation:pulse 1.5s ease infinite}
-
-/* LOGIN MODAL */
-#login-modal{display:none;position:fixed;inset:0;z-index:9999;
-  background:rgba(8,10,20,.85);backdrop-filter:blur(20px);align-items:center;justify-content:center}
-#login-modal.show{display:flex}
-.lm-card{background:var(--surface);border:1px solid var(--border);border-radius:1.5rem;
-  padding:2.5rem;text-align:center;max-width:380px;width:90%;
-  box-shadow:0 40px 100px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.06)}
-.lm-icon{width:4rem;height:4rem;border-radius:1.25rem;background:linear-gradient(135deg,var(--indigo-dark),var(--pink));
-  display:flex;align-items:center;justify-content:center;font-size:1.5rem;color:#fff;margin:0 auto 1.25rem;
-  box-shadow:0 8px 24px rgba(99,102,241,.4)}
-.lm-title{font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;margin-bottom:.5rem}
-.lm-sub{font-size:.85rem;color:var(--text-muted);margin-bottom:1.75rem;line-height:1.6}
-
-/* SEC LABEL */
-.sec-label{font-family:'Syne',sans-serif;font-size:.58rem;font-weight:800;color:var(--text-dim);
-  text-transform:uppercase;letter-spacing:.1em;margin-bottom:.55rem;display:block}
-.char-counter{display:flex;justify-content:flex-end;font-size:.63rem;color:var(--text-dim);margin-top:.25rem}
-.char-counter.warn{color:#fbbf24}
-.char-counter.over{color:#f87171}
+  /* SHINE */
+  @keyframes shine{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+  .animate-shine-fast{animation:shine 2s infinite}
 </style>
 </head>
-<body>
+<body class="md:p-4">
 
-<div class="glow-1"></div>
-<div class="glow-2"></div>
+<!-- BG GLOW -->
+<div class="fixed top-0 right-1/4 w-[500px] h-[500px] bg-indigo-500/5 rounded-full blur-[100px] pointer-events-none z-0"></div>
+<div class="fixed bottom-0 left-1/4 w-[400px] h-[400px] bg-pink-500/4 rounded-full blur-[120px] pointer-events-none z-0"></div>
 
-<!-- NAV -->
-<nav>
-  <a class="nav-brand" href="#">
-    <div class="nav-logo"><i class="fa-solid fa-bolt"></i></div>
-    <span class="nav-title">Viralio <span>Auto Pipeline</span></span>
-  </a>
-  <div style="display:flex;align-items:center;gap:.75rem">
-    <div id="user-pill">
-      <img id="nav-avatar" src="" alt="">
-      <div style="display:flex;flex-direction:column">
-        <span class="uname" id="nav-name"></span>
-        <span class="ucreds"><span id="nav-credits">0</span> CR · <span id="nav-chars">0</span> ch</span>
+<div class="bg-white md:rounded-[1.5rem] min-h-screen shadow-xl overflow-hidden relative pb-24 border border-slate-100">
+
+  <!-- NAV -->
+  <div class="sticky top-0 z-50 flex w-full justify-center px-2 py-4 md:p-2">
+    <nav class="w-full rounded-2xl border border-slate-200 bg-white/80 backdrop-blur-xl md:mx-12 shadow-sm px-5 md:px-8 py-3 flex justify-between items-center">
+      <a class="flex items-center font-black text-xl tracking-tight text-slate-900" href="https://viralio.ro">
+        <div class="w-8 h-8 rounded-xl bg-gradient-viralio flex items-center justify-center text-white mr-2.5 shadow-md"><i class="fa-solid fa-bolt text-sm"></i></div>
+        Viralio <span class="text-sm font-medium text-slate-400 ml-2 border-l border-slate-200 pl-2 mt-0.5">Auto Pipeline</span>
+      </a>
+      <div class="flex items-center gap-2">
+        <button onclick="openLoginModal()" id="login-top-btn" class="px-4 py-2 bg-slate-900 text-white rounded-xl hover:bg-viralio-600 transition-all font-bold shadow-md text-sm">Conectează-te</button>
+        <div id="user-profile" class="hidden items-center bg-slate-50 border border-slate-200 py-1 pl-1.5 pr-1.5 rounded-full">
+          <img id="nav-avatar" src="" class="w-8 h-8 rounded-full border border-slate-200">
+          <div class="flex flex-col leading-none ml-2 mr-1">
+            <span id="nav-name" class="text-xs font-bold text-slate-900 mb-0.5"></span>
+            <span class="text-[0.62rem] font-bold text-viralio-600 flex items-center gap-1.5">
+              <span id="nav-credits">0</span> credite · <span id="nav-chars">0</span> chars
+            </span>
+          </div>
+          <button onclick="logout()" class="p-2 text-slate-400 hover:text-red-500 transition-colors rounded-full hover:bg-red-50 ml-1"><i class="fa-solid fa-power-off text-xs"></i></button>
+        </div>
       </div>
-      <button class="btn-logout" onclick="logout()"><i class="fa-solid fa-power-off"></i></button>
-    </div>
-    <button id="login-btn" onclick="showLoginModal()"><i class="fa-brands fa-google" style="margin-right:.3rem"></i> Conectează-te</button>
+    </nav>
   </div>
-</nav>
 
-<!-- LOGIN MODAL -->
-<div id="login-modal">
-  <div class="lm-card">
-    <button onclick="hideLoginModal()" style="position:absolute;top:1rem;right:1rem;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.1rem"><i class="fa-solid fa-xmark"></i></button>
-    <div class="lm-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
-    <h2 class="lm-title">Intră în cont</h2>
-    <p class="lm-sub">Conectează-te cu Google pentru a accesa Pipeline Studio.</p>
-    <div style="display:flex;justify-content:center;background:rgba(255,255,255,.04);padding:1rem;border-radius:.875rem;border:1px solid var(--border)">
-      <div id="g_id_onload"
-           data-client_id="743541351685-br4h5r61n3ai28bbhm9blt34944rju8p.apps.googleusercontent.com"
-           data-context="signin" data-ux_mode="popup"
-           data-callback="handleCredentialResponse" data-auto_prompt="false"></div>
-      <div class="g_id_signin" data-type="standard" data-shape="rectangular"
-           data-theme="filled_black" data-text="signin_with" data-size="large"></div>
+  <!-- LOGIN MODAL -->
+  <div id="login-modal">
+    <div class="modal-content">
+      <button class="absolute top-4 right-5 text-slate-400 hover:text-slate-900" onclick="closeLoginModal()"><i class="fa-solid fa-xmark text-xl"></i></button>
+      <div class="w-14 h-14 rounded-2xl bg-indigo-50 text-viralio-600 flex items-center justify-center text-3xl mx-auto mb-4"><i class="fas fa-fingerprint"></i></div>
+      <h2 class="text-2xl font-extrabold mb-2 text-slate-900">Intră în cont</h2>
+      <p class="text-slate-500 text-sm mb-6">Conectează-te cu Google pentru a folosi pipeline-ul.</p>
+      <div class="flex justify-center bg-slate-50 py-3 rounded-2xl border border-slate-100">
+        <div id="g_id_onload" data-client_id="743541351685-br4h5r61n3ai28bbhm9blt34944rju8p.apps.googleusercontent.com" data-context="signin" data-ux_mode="popup" data-callback="handleCredentialResponse" data-auto_prompt="false"></div>
+        <div class="g_id_signin" data-type="standard" data-shape="rectangular" data-theme="outline" data-text="signin_with" data-size="large"></div>
+      </div>
     </div>
   </div>
-</div>
 
-<!-- MAIN -->
-<div class="main">
-  <h1 class="page-title">Auto <span class="grad">Content Pipeline</span></h1>
-  <p class="page-sub">Bagă link-ul · Alege vocea · Gata automat</p>
-
-  <!-- TABS -->
-  <div class="tabs">
-    <button class="tab active" onclick="switchTab('auto')"><i class="fa-solid fa-bolt" style="margin-right:.35rem"></i>Auto Pipeline</button>
-    <button class="tab" onclick="switchTab('caption')"><i class="fa-solid fa-closed-captioning" style="margin-right:.35rem"></i>Caption Remover</button>
+  <!-- HERO -->
+  <div class="max-w-3xl mx-auto px-4 mt-10 text-center relative z-10">
+    <div class="w-16 h-16 rounded-[1.25rem] bg-indigo-50 border border-indigo-100 text-viralio-600 flex items-center justify-center text-3xl mx-auto mb-5 shadow-sm">
+      <i class="fas fa-wand-magic-sparkles"></i>
+    </div>
+    <h1 class="text-3xl md:text-4xl font-extrabold mb-3 tracking-tight text-slate-900">Auto Content Pipeline</h1>
+    <p class="text-slate-500 text-base font-medium mb-2">Descarcă video 1080p · Transcriere automată · Voice-over AI · Smart Cut</p>
+    <div class="flex flex-wrap items-center justify-center gap-2 mt-3 mb-8">
+      <span class="inline-flex items-center gap-1 text-[0.65rem] font-bold px-2.5 py-1 rounded-full bg-amber-50 border border-amber-100 text-amber-700"><i class="fas fa-coins text-amber-400"></i> 2 Credite / video</span>
+      <span class="inline-flex items-center gap-1 text-[0.65rem] font-bold px-2.5 py-1 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700"><i class="fas fa-film"></i> 1080p max</span>
+      <span class="inline-flex items-center gap-1 text-[0.65rem] font-bold px-2.5 py-1 rounded-full bg-pink-50 border border-pink-100 text-pink-700"><i class="fas fa-microphone-lines"></i> Voice AI inclus</span>
+      <span class="inline-flex items-center gap-1 text-[0.65rem] font-bold px-2.5 py-1 rounded-full bg-green-50 border border-green-100 text-green-700"><i class="fas fa-scissors"></i> Smart Cut inclus</span>
+    </div>
   </div>
 
-  <!-- ══════════════════════════════════════════
-       TAB: AUTO PIPELINE
-  ══════════════════════════════════════════ -->
-  <div id="tab-auto">
+  <!-- MAIN CARD -->
+  <div class="max-w-3xl mx-auto px-4 relative z-10 space-y-4">
 
-    <!-- CONFIG CARD -->
-    <div class="card" id="config-card">
-      <div class="card-header">
-        <div class="card-icon"><i class="fa-solid fa-bolt"></i></div>
+    <!-- RIBBON STATUS -->
+    <div id="ribbon" class="hidden ribbon text-sm font-semibold flex items-center gap-3">
+      <div class="w-5 h-5 flex items-center justify-center"><i id="ribbon-icon" class="fas fa-circle-notch spin"></i></div>
+      <div class="flex-1 min-w-0">
+        <div id="ribbon-title" class="font-bold leading-tight"></div>
+        <div id="ribbon-sub" class="text-xs opacity-80 mt-0.5"></div>
+      </div>
+      <div id="ribbon-progress" class="text-xs font-black opacity-70 shrink-0"></div>
+    </div>
+
+    <!-- ── CARD INPUT ── -->
+    <div class="bg-white border border-slate-200 rounded-[1.25rem] shadow-sm overflow-hidden">
+      <div class="flex items-center gap-3 px-5 py-4 border-b border-slate-100 bg-slate-50">
+        <div class="w-8 h-8 rounded-xl bg-gradient-viralio flex items-center justify-center text-white text-sm shrink-0"><i class="fab fa-youtube"></i></div>
         <div>
-          <div class="card-title">Configurare Pipeline</div>
-          <div class="card-sub">Setează tot înainte de start · rulează complet automat</div>
+          <div class="font-bold text-slate-800 text-sm">Link YouTube</div>
+          <div class="text-[0.65rem] text-slate-400 font-medium">Paste link · procesare 1080p automată</div>
         </div>
       </div>
-      <div class="card-body">
-
-        <!-- URL -->
-        <div class="field">
-          <label>Link video</label>
-          <div class="input-wrap">
-            <i class="fa-solid fa-link input-icon"></i>
-            <input type="url" id="yt-url" placeholder="https://youtube.com/watch?v=... sau TikTok, Instagram..." autocomplete="off">
+      <div class="p-5 space-y-4">
+        <!-- URL INPUT -->
+        <div>
+          <div class="relative">
+            <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300 text-sm"><i class="fas fa-link"></i></span>
+            <input id="yt-url" type="text" placeholder="https://youtube.com/watch?v=..." class="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-3 text-sm font-medium text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all placeholder-slate-300">
           </div>
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1.1rem">
-          <div class="field" style="margin:0">
-            <label>Format</label>
-            <select id="dl-format">
-              <option value="mp4">📹 MP4 (Video)</option>
-              <option value="mp3">🎵 MP3 (Audio)</option>
-              <option value="both">📦 Ambele</option>
+        <!-- CONTROLS ROW -->
+        <div class="flex flex-col sm:flex-row gap-3">
+          <div class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 flex items-center gap-3">
+            <label class="text-slate-500 font-semibold text-xs whitespace-nowrap"><i class="fas fa-cog text-slate-300 mr-1"></i>Calitate</label>
+            <select id="dl-quality" class="flex-1 bg-transparent text-slate-800 font-bold text-sm outline-none cursor-pointer">
+              <option value="1080" selected>1080p HD</option>
+              <option value="720">720p</option>
+              <option value="480">480p</option>
             </select>
           </div>
-          <div class="field" style="margin:0">
-            <label>Calitate</label>
-            <select id="dl-quality">
-              <option value="best">⭐ Maximă</option>
-              <option value="1080p">1080p</option>
-              <option value="720p">720p</option>
-              <option value="480p">480p</option>
+          <div class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 flex items-center gap-3">
+            <label class="text-slate-500 font-semibold text-xs whitespace-nowrap"><i class="fas fa-language text-slate-300 mr-1"></i>Limbă</label>
+            <select id="dl-limba" class="flex-1 bg-transparent text-slate-800 font-bold text-sm outline-none cursor-pointer">
+              <option value="română" selected>🇷🇴 Română</option>
+              <option value="engleză">🇬🇧 Engleză</option>
+              <option value="germană">🇩🇪 Germană</option>
+              <option value="franceză">🇫🇷 Franceză</option>
+              <option value="spaniolă">🇪🇸 Spaniolă</option>
+              <option value="italiană">🇮🇹 Italiană</option>
+              <option value="portugheză">🇵🇹 Portugheză</option>
+              <option value="olandeză">🇳🇱 Olandeză</option>
+              <option value="poloneză">🇵🇱 Poloneză</option>
+              <option value="rusă">🇷🇺 Rusă</option>
+              <option value="japoneză">🇯🇵 Japoneză</option>
+              <option value="chineză">🇨🇳 Chineză</option>
+              <option value="arabă">🇸🇦 Arabă</option>
+              <option value="turcă">🇹🇷 Turcă</option>
+              <option value="coreeană">🇰🇷 Coreeană</option>
             </select>
           </div>
         </div>
 
-        <!-- VOICE SELECTION -->
-        <span class="sec-label">🎙 Alege vocea pentru Voice-Over</span>
-        <div class="voice-grid" id="voice-grid"></div>
-
-        <!-- VOICE SETTINGS (colapsabile) -->
-        <details style="margin-bottom:1.1rem">
-          <summary style="font-size:.72rem;font-weight:700;color:var(--text-muted);cursor:pointer;list-style:none;display:flex;align-items:center;gap:.35rem;margin-bottom:.75rem">
-            <i class="fa-solid fa-sliders" style="color:var(--indigo)"></i> Setări voce avansate
-            <i class="fa-solid fa-chevron-down" style="margin-left:auto;font-size:.6rem"></i>
-          </summary>
-          <div class="slider-group" style="margin-top:.5rem">
-            <div class="slider-field">
-              <label>Stabilitate <span id="val-stability">0.50</span></label>
-              <input type="range" id="sl-stability" min="0" max="1" step="0.01" value="0.5" oninput="document.getElementById('val-stability').textContent=parseFloat(this.value).toFixed(2)">
-            </div>
-            <div class="slider-field">
-              <label>Claritate <span id="val-similarity">0.75</span></label>
-              <input type="range" id="sl-similarity" min="0" max="1" step="0.01" value="0.75" oninput="document.getElementById('val-similarity').textContent=parseFloat(this.value).toFixed(2)">
-            </div>
-            <div class="slider-field">
-              <label>Viteză <span id="val-speed">1.00</span></label>
-              <input type="range" id="sl-speed" min="0.7" max="1.2" step="0.05" value="1.0" oninput="document.getElementById('val-speed').textContent=parseFloat(this.value).toFixed(2)">
-            </div>
-          </div>
-          <!-- Smart Cut settings -->
-          <div class="slider-group">
-            <div class="slider-field">
-              <label>Pauza minimă (s) <span id="val-silence">0.35</span></label>
-              <input type="range" id="sl-silence" min="0.1" max="2" step="0.05" value="0.35" oninput="document.getElementById('val-silence').textContent=parseFloat(this.value).toFixed(2)">
-            </div>
-            <div class="slider-field" style="display:flex;flex-direction:column;gap:.4rem">
-              <label style="font-size:.68rem;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em">Prag silence</label>
-              <select id="sl-thresh" style="padding:.55rem .75rem;background:rgba(255,255,255,.04);border:1.5px solid var(--border);border-radius:.65rem;color:var(--text);font-family:'DM Sans',sans-serif;font-size:.8rem">
-                <option value="-45dB">-45dB (recomandat)</option>
-                <option value="-40dB">-40dB (agresiv)</option>
-                <option value="-50dB">-50dB (blând)</option>
-              </select>
-            </div>
-          </div>
-        </details>
-
-        <!-- TRANSCRIPT OPTION -->
-        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:1.1rem">
-          <input type="checkbox" id="dl-transcript" checked style="width:1rem;height:1rem;accent-color:var(--indigo);cursor:pointer">
-          <label for="dl-transcript" style="font-size:.82rem;color:var(--text-muted);cursor:pointer;font-weight:500">
-            Extrage transcript automat și trimite la Voice Studio
+        <!-- SKIP TOGGLES -->
+        <div class="flex flex-wrap gap-2">
+          <label class="flex items-center gap-2 cursor-pointer bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 hover:border-indigo-300 transition-colors">
+            <input type="checkbox" id="skip-voice" class="w-4 h-4 accent-indigo-600">
+            <span class="text-xs font-semibold text-slate-600">Sari Voice</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 hover:border-indigo-300 transition-colors">
+            <input type="checkbox" id="skip-cut" class="w-4 h-4 accent-indigo-600">
+            <span class="text-xs font-semibold text-slate-600">Sari Smart Cut</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 hover:border-indigo-300 transition-colors">
+            <input type="checkbox" id="manual-text-toggle" class="w-4 h-4 accent-indigo-600" onchange="toggleManualText()">
+            <span class="text-xs font-semibold text-slate-600">Text manual</span>
           </label>
         </div>
 
-        <!-- OPTIONAL: text override -->
-        <details style="margin-bottom:1.1rem">
-          <summary style="font-size:.72rem;font-weight:700;color:var(--text-muted);cursor:pointer;list-style:none;display:flex;align-items:center;gap:.35rem">
-            <i class="fa-solid fa-pen" style="color:var(--pink)"></i> Sau scrie manual textul pentru voice-over (opțional)
-          </summary>
-          <div style="margin-top:.75rem">
-            <textarea id="voice-text" placeholder="Lasă gol pentru a folosi transcriptul automat..." oninput="updateCharCount()" style="width:100%;padding:.85rem 1rem;background:rgba(255,255,255,.04);border:1.5px solid var(--border);border-radius:.875rem;font-size:.88rem;font-weight:500;color:var(--text);outline:none;font-family:'DM Sans',sans-serif;resize:vertical;min-height:100px;line-height:1.6"></textarea>
-            <div class="char-counter" id="char-counter">0 caractere (fără spații)</div>
-          </div>
-        </details>
-
-        <!-- SKIP OPTIONS -->
-        <div style="display:flex;gap:.75rem;margin-bottom:1.25rem;flex-wrap:wrap">
-          <label style="display:flex;align-items:center;gap:.4rem;font-size:.78rem;color:var(--text-muted);cursor:pointer;font-weight:600">
-            <input type="checkbox" id="skip-voice" style="accent-color:var(--indigo)"> Sari peste Voice
-          </label>
-          <label style="display:flex;align-items:center;gap:.4rem;font-size:.78rem;color:var(--text-muted);cursor:pointer;font-weight:600">
-            <input type="checkbox" id="skip-smartcut" style="accent-color:var(--indigo)"> Sari peste Smart Cut
-          </label>
+        <!-- TEXT MANUAL -->
+        <div id="manual-text-box" class="hidden">
+          <textarea id="manual-text" rows="4" placeholder="Scrie textul pentru voice-over (dacă nu vrei transcriere automată)..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all placeholder-slate-300 resize-none font-medium"></textarea>
         </div>
 
-        <button class="btn btn-primary btn-full" id="btn-start" onclick="startPipeline()">
-          <i class="fa-solid fa-rocket"></i> Pornește Pipeline Automat
+        <!-- RUN BUTTON -->
+        <button id="run-btn" onclick="runPipeline()" class="w-full bg-gradient-viralio hover:opacity-90 text-white px-6 py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-md text-sm">
+          <i class="fas fa-wand-magic-sparkles"></i> PORNEȘTE PIPELINE · <span class="bg-white/20 rounded-md px-1.5 py-0.5 text-xs font-black">2 credite</span>
         </button>
       </div>
     </div>
 
-    <!-- PIPELINE PROGRESS -->
-    <div id="pipeline-running" style="display:none">
-
-      <!-- RIBBON -->
-      <div class="pipeline-ribbon" id="ribbon">
-        <div class="ribbon-icon"><i class="fa-solid fa-gear pulse" id="ribbon-icon"></i></div>
-        <div class="ribbon-text">
-          <div class="ribbon-title" id="ribbon-title">Pipeline în desfășurare...</div>
-          <div class="ribbon-sub" id="ribbon-sub">Se procesează automat, nu închide pagina</div>
-          <div class="progress-bar" style="margin-top:.6rem">
-            <div class="progress-fill" id="progress-fill" style="width:0%"></div>
-          </div>
+    <!-- ── STEP 1: DOWNLOAD ── -->
+    <div id="step-1" class="step-card bg-white border border-slate-200 rounded-[1.25rem] shadow-sm overflow-hidden">
+      <div class="flex items-center gap-3 px-5 py-3.5 border-b border-slate-100">
+        <div id="step-1-icon" class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 text-xs font-black shrink-0">1</div>
+        <div class="flex-1 min-w-0">
+          <div class="font-bold text-slate-800 text-sm">Download Video 1080p</div>
+          <div id="step-1-status" class="text-[0.65rem] text-slate-400 font-medium mt-0.5">În așteptare</div>
         </div>
-        <div class="ribbon-step" id="ribbon-step">0/3</div>
+        <div id="step-1-badge" class="text-[0.6rem] font-bold uppercase tracking-wide px-2 py-1 rounded-md bg-slate-100 text-slate-400 shrink-0">wait</div>
       </div>
-
-      <!-- STEP 1: DOWNLOAD -->
-      <div class="pipe-step" id="ps-1">
-        <div class="pipe-step-header">
-          <div class="pipe-step-icon"><i class="fa-solid fa-download" id="ps1-icon"></i></div>
-          <div class="pipe-step-info">
-            <div class="pipe-step-title">Download + Transcript</div>
-            <div class="pipe-step-sub" id="ps1-sub">Descărcare video și extragere transcript</div>
-          </div>
-          <div class="step-badge badge-wait" id="ps1-badge">Aștept</div>
-        </div>
-        <div class="pipe-step-body" id="ps1-body"></div>
-      </div>
-
-      <div class="pipe-connector" id="conn-1"><i class="fa-solid fa-chevron-down"></i></div>
-
-      <!-- STEP 2: VOICE -->
-      <div class="pipe-step" id="ps-2">
-        <div class="pipe-step-header">
-          <div class="pipe-step-icon"><i class="fa-solid fa-microphone-lines" id="ps2-icon"></i></div>
-          <div class="pipe-step-info">
-            <div class="pipe-step-title">Voice Studio</div>
-            <div class="pipe-step-sub" id="ps2-sub">Generare voice-over cu AI</div>
-          </div>
-          <div class="step-badge badge-wait" id="ps2-badge">Aștept</div>
-        </div>
-        <div class="pipe-step-body" id="ps2-body"></div>
-      </div>
-
-      <div class="pipe-connector" id="conn-2"><i class="fa-solid fa-chevron-down"></i></div>
-
-      <!-- STEP 3: SMART CUT -->
-      <div class="pipe-step" id="ps-3">
-        <div class="pipe-step-header">
-          <div class="pipe-step-icon"><i class="fa-solid fa-scissors" id="ps3-icon"></i></div>
-          <div class="pipe-step-info">
-            <div class="pipe-step-title">Smart Cut</div>
-            <div class="pipe-step-sub" id="ps3-sub">Eliminare pauze și spații moarte</div>
-          </div>
-          <div class="step-badge badge-wait" id="ps3-badge">Aștept</div>
-        </div>
-        <div class="pipe-step-body" id="ps3-body"></div>
-      </div>
-
-      <!-- RESULTS SUMMARY -->
-      <div id="pipeline-done" style="display:none;margin-top:1.25rem">
-        <div class="result-card">
-          <h4><i class="fa-solid fa-party-horn" style="color:#fbbf24;margin-right:.4rem"></i>Pipeline finalizat cu succes! 🎉</h4>
-          <div id="final-results" class="result-actions"></div>
-        </div>
-        <!-- STEP 4: Caption Remover -->
-        <div style="margin-top:1rem;background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.25);border-radius:.875rem;padding:1rem 1.25rem;display:flex;align-items:center;gap:.85rem">
-          <div style="width:2.25rem;height:2.25rem;border-radius:.65rem;background:linear-gradient(135deg,#d97706,#fbbf24);display:flex;align-items:center;justify-content:center;color:#fff;font-size:.85rem;flex-shrink:0"><i class="fa-solid fa-closed-captioning"></i></div>
-          <div style="flex:1">
-            <div style="font-family:'Syne',sans-serif;font-size:.85rem;font-weight:800;color:var(--text)">Step 4 · Caption Remover</div>
-            <div style="font-size:.68rem;color:var(--text-muted);margin-top:.1rem">Videoul din Step 1 e gata de încărcat — selectează zona captionului și șterge-l</div>
-          </div>
-          <button class="btn btn-sm" style="background:linear-gradient(135deg,#d97706,#fbbf24);color:#fff;flex-shrink:0" onclick="goToCaptionRemover()">
-            <i class="fa-solid fa-arrow-right"></i> Du-mă acolo
-          </button>
-        </div>
-        <div style="display:flex;gap:.75rem;margin-top:.75rem;flex-wrap:wrap">
-          <button class="btn btn-ghost btn-sm" onclick="resetPipeline()"><i class="fa-solid fa-rotate-left"></i> Rulează altul</button>
-        </div>
-      </div>
-
-    </div><!-- /pipeline-running -->
-
-  </div><!-- /tab-auto -->
-
-  <!-- ══════════════════════════════════════════
-       TAB: CAPTION REMOVER
-  ══════════════════════════════════════════ -->
-  <div id="tab-caption" style="display:none">
-    <div class="card">
-      <div class="card-header">
-        <div class="card-icon amber"><i class="fa-solid fa-closed-captioning"></i></div>
-        <div>
-          <div class="card-title">Caption Remover</div>
-          <div class="card-sub">Selectează zona textului și elimină captionul · Cost: 0.5 Credite</div>
-        </div>
-      </div>
-      <div class="card-body">
-
-        <div id="cap-upload-zone" class="upload-zone" onclick="document.getElementById('cap-file-input').click()"
-             ondragover="this.classList.add('drag');event.preventDefault()"
-             ondragleave="this.classList.remove('drag')"
-             ondrop="handleCapDrop(event)">
-          <input type="file" id="cap-file-input" accept="video/*" onchange="handleCapFile(this.files[0])">
-          <div class="upload-zone-icon"><i class="fa-solid fa-film"></i></div>
-          <div class="upload-zone-text">Trage videoclipul sau click pentru a încărca</div>
-          <div class="upload-zone-sub">MP4, MOV, AVI · Max 500MB</div>
-        </div>
-
-        <div id="cap-editor" style="display:none;margin-top:1.1rem">
-          <div id="cap-wrap">
-            <video id="cap-video" muted style="display:none"></video>
-            <img id="cap-preview" src="" alt="preview">
-            <canvas id="cap-canvas"></canvas>
-          </div>
-          <div class="cap-coords" style="margin-top:.65rem">
-            <div>
-              <div style="font-size:.58rem;color:var(--text-dim);font-weight:700;text-align:center;margin-bottom:.2rem">X%</div>
-              <input type="number" id="cap-x" value="5" min="0" max="99" onchange="syncBoxFromInputs()">
-            </div>
-            <div>
-              <div style="font-size:.58rem;color:var(--text-dim);font-weight:700;text-align:center;margin-bottom:.2rem">Y%</div>
-              <input type="number" id="cap-y" value="70" min="0" max="99" onchange="syncBoxFromInputs()">
-            </div>
-            <div>
-              <div style="font-size:.58rem;color:var(--text-dim);font-weight:700;text-align:center;margin-bottom:.2rem">W%</div>
-              <input type="number" id="cap-w" value="90" min="1" max="100" onchange="syncBoxFromInputs()">
-            </div>
-            <div>
-              <div style="font-size:.58rem;color:var(--text-dim);font-weight:700;text-align:center;margin-bottom:.2rem">H%</div>
-              <input type="number" id="cap-h" value="15" min="1" max="100" onchange="syncBoxFromInputs()">
-            </div>
-          </div>
-          <p style="font-size:.7rem;color:var(--text-dim);margin-top:.5rem;text-align:center">
-            <i class="fa-solid fa-hand-pointer"></i> Trage sau redimensionează dreptunghiul direct pe video
-          </p>
-        </div>
-
-        <div id="cap-status" style="margin-top:.75rem"></div>
-
-        <button class="btn btn-primary btn-full" id="btn-cap" onclick="runCaptionRemover()" style="margin-top:.75rem">
-          <i class="fa-solid fa-eraser"></i> Elimină Captionul
-        </button>
-
-        <div id="cap-result" style="display:none;margin-top:.75rem" class="result-card">
-          <h4><i class="fa-solid fa-circle-check" style="color:#6ee7b7;margin-right:.4rem"></i>Video procesat · <span id="cap-credits-left"></span> credite rămase</h4>
-          <div class="result-actions">
-            <a id="cap-dl-link" class="btn btn-ghost btn-sm" download><i class="fa-solid fa-download"></i> Descarcă Video</a>
-          </div>
-        </div>
-      </div>
+      <div id="step-1-body" class="hidden px-5 py-4"></div>
     </div>
-  </div><!-- /tab-caption -->
 
-</div><!-- /main -->
+    <!-- ── STEP 2: VOICE ── -->
+    <div id="step-2" class="step-card bg-white border border-slate-200 rounded-[1.25rem] shadow-sm overflow-hidden">
+      <div class="flex items-center gap-3 px-5 py-3.5 border-b border-slate-100">
+        <div id="step-2-icon" class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 text-xs font-black shrink-0">2</div>
+        <div class="flex-1 min-w-0">
+          <div class="font-bold text-slate-800 text-sm">Voice Studio AI</div>
+          <div id="step-2-status" class="text-[0.65rem] text-slate-400 font-medium mt-0.5">În așteptare</div>
+        </div>
+        <div id="step-2-badge" class="text-[0.6rem] font-bold uppercase tracking-wide px-2 py-1 rounded-md bg-slate-100 text-slate-400 shrink-0">wait</div>
+      </div>
+
+      <!-- VOICE CONFIG (always visible below header) -->
+      <div class="px-5 py-4 bg-slate-50 border-b border-slate-100">
+        <div id="voice-grid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 mb-3"></div>
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <div class="flex justify-between mb-1"><label class="text-[0.6rem] font-bold text-slate-400 uppercase tracking-wide">Stabilitate</label><span id="val-stability" class="text-[0.65rem] font-bold text-indigo-600">0.50</span></div>
+            <input type="range" id="sl-stability" min="0" max="1" step="0.05" value="0.5" oninput="document.getElementById('val-stability').textContent=parseFloat(this.value).toFixed(2)">
+          </div>
+          <div>
+            <div class="flex justify-between mb-1"><label class="text-[0.6rem] font-bold text-slate-400 uppercase tracking-wide">Similaritate</label><span id="val-similarity" class="text-[0.65rem] font-bold text-indigo-600">0.75</span></div>
+            <input type="range" id="sl-similarity" min="0" max="1" step="0.05" value="0.75" oninput="document.getElementById('val-similarity').textContent=parseFloat(this.value).toFixed(2)">
+          </div>
+          <div>
+            <div class="flex justify-between mb-1"><label class="text-[0.6rem] font-bold text-slate-400 uppercase tracking-wide">Viteză</label><span id="val-speed" class="text-[0.65rem] font-bold text-indigo-600">1.00</span></div>
+            <input type="range" id="sl-speed" min="0.5" max="2" step="0.05" value="1.0" oninput="document.getElementById('val-speed').textContent=parseFloat(this.value).toFixed(2)">
+          </div>
+        </div>
+      </div>
+
+      <div id="step-2-body" class="hidden px-5 py-4"></div>
+    </div>
+
+    <!-- ── STEP 3: SMART CUT ── -->
+    <div id="step-3" class="step-card bg-white border border-slate-200 rounded-[1.25rem] shadow-sm overflow-hidden">
+      <div class="flex items-center gap-3 px-5 py-3.5 border-b border-slate-100">
+        <div id="step-3-icon" class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 text-xs font-black shrink-0">3</div>
+        <div class="flex-1 min-w-0">
+          <div class="font-bold text-slate-800 text-sm">Smart Cut <span class="text-slate-400 font-medium">— elimină pauzele</span></div>
+          <div id="step-3-status" class="text-[0.65rem] text-slate-400 font-medium mt-0.5">În așteptare</div>
+        </div>
+        <div id="step-3-badge" class="text-[0.6rem] font-bold uppercase tracking-wide px-2 py-1 rounded-md bg-slate-100 text-slate-400 shrink-0">wait</div>
+      </div>
+
+      <!-- SMART CUT CONFIG -->
+      <div class="px-5 py-4 bg-slate-50 border-b border-slate-100 grid grid-cols-2 gap-3">
+        <div>
+          <div class="flex justify-between mb-1"><label class="text-[0.6rem] font-bold text-slate-400 uppercase tracking-wide">Min. pauză</label><span id="val-silence" class="text-[0.65rem] font-bold text-indigo-600">0.35s</span></div>
+          <input type="range" id="sl-silence" min="0.1" max="2" step="0.05" value="0.35" oninput="document.getElementById('val-silence').textContent=parseFloat(this.value).toFixed(2)+'s'">
+        </div>
+        <div>
+          <div class="flex justify-between mb-1"><label class="text-[0.6rem] font-bold text-slate-400 uppercase tracking-wide">Threshold</label><span id="val-thresh" class="text-[0.65rem] font-bold text-indigo-600">-45dB</span></div>
+          <input type="range" id="sl-thresh" min="-60" max="-20" step="1" value="-45" oninput="document.getElementById('val-thresh').textContent=this.value+'dB'">
+        </div>
+      </div>
+
+      <div id="step-3-body" class="hidden px-5 py-4"></div>
+    </div>
+
+    <!-- ── FINAL RESULT ── -->
+    <div id="final-result" class="hidden bg-white border border-green-200 rounded-[1.25rem] shadow-sm overflow-hidden">
+      <div class="bg-green-50 px-5 py-4 flex items-center gap-3 border-b border-green-100">
+        <div class="w-9 h-9 rounded-xl bg-green-100 flex items-center justify-center text-green-600 text-lg shrink-0"><i class="fas fa-check-circle"></i></div>
+        <div>
+          <div class="font-extrabold text-green-800 text-sm">Pipeline Finalizat!</div>
+          <div class="text-xs text-green-600 mt-0.5">Toate fișierele sunt gata pentru download</div>
+        </div>
+      </div>
+      <div id="final-body" class="p-5 grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+    </div>
+
+  </div><!-- end max-w-3xl -->
+
+  <!-- DISCORD/TELEGRAM BAR -->
+  <div class="fixed bottom-5 right-5 md:right-6 z-[100000] flex items-center bg-white/70 backdrop-blur-2xl rounded-full p-1.5 border border-slate-200 shadow-lg transition-all hover:-translate-y-1 hover:shadow-xl hover:bg-white/90">
+    <a href="https://discord.gg/h8Ah6VKDzm" target="_blank" class="group flex items-center gap-2 hover:bg-slate-100 rounded-full px-3 py-1.5 transition-all">
+      <div class="flex items-center justify-center w-9 h-9 rounded-full bg-slate-900 text-white shadow-sm group-hover:bg-[#5865F2] group-hover:scale-105 transition-all">
+        <i class="fa-brands fa-discord text-sm"></i>
+      </div>
+      <div class="flex-col hidden sm:flex text-left">
+        <span class="text-[0.5rem] font-bold text-slate-400 uppercase tracking-widest leading-none mb-0.5">Ai Întrebări?</span>
+        <span class="text-xs font-black text-slate-800 leading-none group-hover:text-black">Suport Discord</span>
+      </div>
+    </a>
+    <div class="w-px h-6 bg-gradient-to-b from-transparent via-slate-300 to-transparent mx-1"></div>
+    <a href="https://t.me/SmartCreator_official" target="_blank" class="group flex items-center gap-2 rounded-full px-3 py-1.5 transition-all">
+      <div class="relative flex items-center justify-center w-9 h-9 group-hover:scale-110 transition-transform">
+        <div class="absolute inset-0 rounded-full bg-gradient-to-br from-[#0088cc] to-[#00aaff] overflow-hidden shadow-[0_0_15px_rgba(0,136,204,.4)]">
+          <div class="absolute inset-0 w-[250%] h-full bg-gradient-to-r from-transparent via-white/60 to-transparent animate-shine-fast z-10"></div>
+        </div>
+        <i class="fa-brands fa-telegram text-white text-sm pr-0.5 relative z-20"></i>
+        <span class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white animate-pulse z-30"></span>
+      </div>
+      <div class="flex-col hidden sm:flex text-left">
+        <span class="text-[0.5rem] font-bold text-red-500 uppercase tracking-widest leading-none mb-0.5">Giveaways</span>
+        <span class="text-xs font-black text-slate-800 leading-none group-hover:text-[#0088cc]">Telegram VIP</span>
+      </div>
+    </a>
+  </div>
+
+</div><!-- end main white card -->
 
 <script>
-/* ══════════════════════════════════════════════
-   VOICES DATA
-══════════════════════════════════════════════ */
-const TOP_VOICES = [
-  {id:"TX3LPaxmHKxFdv7VOQHJ", name:"Liam",     style:"social media · energetic",  gender:"male",   accent:"american", color:"#6366f1"},
-  {id:"CwhRBWXzGAHq8TQ4Fs17", name:"Roger",    style:"conversational · classy",   gender:"male",   accent:"american", color:"#6366f1"},
-  {id:"JBFqnCBsd6RMkjVDRZzb", name:"George",   style:"british · narrative",       gender:"male",   accent:"british",  color:"#0ea5e9"},
-  {id:"9BWtsMINqrJLrRacOk9x", name:"Aria",     style:"social media · expressive", gender:"female", accent:"american", color:"#ec4899"},
-  {id:"IKne3meq5aSn9XLyUdCD", name:"Charlie",  style:"australian · hyped",        gender:"male",   accent:"australian",color:"#10b981"},
-  {id:"EXAVITQu4vr4xnSDxMaL", name:"Sarah",    style:"entertainment · pro",       gender:"female", accent:"american", color:"#ec4899"},
-  {id:"N2lVS1w4EtoT3dr4eOWO", name:"Callum",   style:"animation · characters",    gender:"male",   accent:"american", color:"#6366f1"},
-  {id:"FGY2WhTYpPnrIDTdsKH5", name:"Laura",    style:"social media · sassy",      gender:"female", accent:"american", color:"#f472b6"},
-  {id:"SAz9YHcvj6GT2YYXdXww", name:"River",    style:"conversational · calm",     gender:"special",accent:"american", color:"#f59e0b"},
-  {id:"onwK4e9ZLuTAKqWW03F9", name:"Reginald", style:"british · authoritative",   gender:"male",   accent:"british",  color:"#0ea5e9"},
-];
-
-/* ══════════════════════════════════════════════
-   STATE
-══════════════════════════════════════════════ */
-let authToken = localStorage.getItem('viralio_token');
-let currentUser = null;
-let selectedVoice = null;
-let pipelineResults = {}; // stores urls between steps
-
+// ══════════════════════════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════════════════════════
 const API_BASE = window.location.origin;
+const GOOGLE_CLIENT_ID = '743541351685-br4h5r61n3ai28bbhm9blt34944rju8p.apps.googleusercontent.com';
 
-/* ══════════════════════════════════════════════
-   AUTH
-══════════════════════════════════════════════ */
+// ── AUTH ─────────────────────────────────────────────────────
+let authToken = null;
+
+function setToken(t) { document.cookie = `viralio_token=${t}; domain=.viralio.ro; path=/; max-age=2592000; Secure; SameSite=Lax`; }
+function getToken() { const m = document.cookie.match(/(?:^|; )viralio_token=([^;]*)/); return m ? m[1] : null; }
+function removeToken() { document.cookie = 'viralio_token=; domain=.viralio.ro; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'; }
+
+function openLoginModal() { document.getElementById('login-modal').classList.add('show'); }
+function closeLoginModal() { document.getElementById('login-modal').classList.remove('show'); }
+function requireAuth() { if (!authToken) { openLoginModal(); return false; } return true; }
+
 async function handleCredentialResponse(response) {
   try {
-    const res = await fetch(`${API_BASE}/api/auth/google`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({credential: response.credential})
-    });
+    const res = await fetch(`${API_BASE}/api/auth/google`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ credential: response.credential }) });
     const data = await res.json();
-    if (data.token) {
-      authToken = data.token;
-      localStorage.setItem('viralio_token', authToken);
-      currentUser = data.user;
-      updateUserUI();
-      hideLoginModal();
-    }
-  } catch(e) {}
+    if (data.token) { setToken(data.token); authToken = data.token; closeLoginModal(); updateUI(data.user); }
+    else if (data.error === 'BETA_FULL') alert(data.message);
+  } catch(e) { alert('Eroare conexiune login.'); }
 }
 
-async function fetchMe() {
-  if (!authToken) return;
-  try {
-    const res = await fetch(`${API_BASE}/api/auth/me`, {headers:{Authorization:`Bearer ${authToken}`}});
-    if (!res.ok) { authToken = null; localStorage.removeItem('viralio_token'); return; }
-    const data = await res.json();
-    currentUser = data.user;
-    updateUserUI();
-  } catch(e){}
+function updateUI(user) {
+  authToken = getToken();
+  document.getElementById('login-top-btn').classList.add('hidden');
+  const up = document.getElementById('user-profile');
+  up.classList.remove('hidden'); up.classList.add('flex');
+  document.getElementById('nav-name').textContent = (user.name||'').split(' ')[0];
+  document.getElementById('nav-avatar').src = user.picture||'';
+  document.getElementById('nav-credits').textContent = Math.floor(user.credits||0);
+  document.getElementById('nav-chars').textContent = (user.voice_characters||0).toLocaleString();
 }
 
-function updateUserUI() {
-  if (!currentUser) return;
-  document.getElementById('user-pill').style.display = 'flex';
-  document.getElementById('login-btn').style.display = 'none';
-  document.getElementById('nav-avatar').src = currentUser.picture || '';
-  document.getElementById('nav-name').textContent = currentUser.name?.split(' ')[0] || '';
-  document.getElementById('nav-credits').textContent = (currentUser.credits || 0).toFixed(1);
-  document.getElementById('nav-chars').textContent = (currentUser.voice_characters || 0).toLocaleString();
-}
+function logout() { removeToken(); authToken = null; location.reload(); }
 
-function logout() {
-  authToken = null; currentUser = null;
-  localStorage.removeItem('viralio_token');
-  document.getElementById('user-pill').style.display = 'none';
-  document.getElementById('login-btn').style.display = '';
-}
-
-function requireAuth() {
-  if (!authToken) { showLoginModal(); return false; }
-  return true;
-}
-
-function showLoginModal(){ document.getElementById('login-modal').classList.add('show') }
-function hideLoginModal(){ document.getElementById('login-modal').classList.remove('show') }
-
-/* ══════════════════════════════════════════════
-   TABS
-══════════════════════════════════════════════ */
-function switchTab(tab) {
-  document.getElementById('tab-auto').style.display = tab==='auto' ? '' : 'none';
-  document.getElementById('tab-caption').style.display = tab==='caption' ? '' : 'none';
-  document.querySelectorAll('.tab').forEach((t,i) => {
-    t.classList.toggle('active', (tab==='auto' && i===0) || (tab==='caption' && i===1));
-  });
-}
-
-/* ══════════════════════════════════════════════
-   VOICE GRID
-══════════════════════════════════════════════ */
-function buildVoiceGrid() {
-  const grid = document.getElementById('voice-grid');
-  grid.innerHTML = TOP_VOICES.map((v,i) => {
-    const initials = v.name.slice(0,2).toUpperCase();
-    const gClass = v.gender==='female'?'vg-f':v.gender==='special'?'vg-s':'vg-m';
-    const gLabel = v.gender==='female'?'F':v.gender==='special'?'S':'M';
-    return `<div class="vcard" id="vc-${i}" onclick="selectVoice(${i})">
-      <div class="vcard-top">
-        <div class="vavatar" style="background:linear-gradient(135deg,${v.color},${v.color}99)">${initials}</div>
-        <div style="flex:1;min-width:0">
-          <div class="vcard-name">${v.name}${i===0?' ⭐':''}</div>
-          <span class="vgender ${gClass}">${gLabel}</span>
-        </div>
-      </div>
-      <div class="vcard-style">${v.style}</div>
-    </div>`;
-  }).join('');
-  selectVoice(0);
-}
-
-function selectVoice(idx) {
-  document.querySelectorAll('.vcard').forEach(c=>c.classList.remove('selected'));
-  document.getElementById(`vc-${idx}`)?.classList.add('selected');
-  selectedVoice = TOP_VOICES[idx];
-}
-
-function updateCharCount() {
-  const text = document.getElementById('voice-text').value;
-  const count = text.replace(/\s+/g,'').length;
-  const el = document.getElementById('char-counter');
-  el.textContent = `${count} caractere (fără spații)`;
-  el.className = 'char-counter' + (count>2500?' warn':'') + (count>3000?' over':'');
-}
-
-/* ══════════════════════════════════════════════
-   PIPELINE HELPERS
-══════════════════════════════════════════════ */
-function setStep(n, state, subText) {
-  const el = document.getElementById(`ps-${n}`);
-  el.className = 'pipe-step';
-  if (state==='active') el.classList.add('ps-active');
-  if (state==='done') el.classList.add('ps-done');
-  if (state==='error') el.classList.add('ps-error');
-
-  const badge = document.getElementById(`ps${n}-badge`);
-  badge.className = 'step-badge';
-  if (state==='active') { badge.classList.add('badge-running'); badge.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> Rulare'; }
-  else if (state==='done') { badge.classList.add('badge-done'); badge.innerHTML='<i class="fa-solid fa-check"></i> Gata'; }
-  else if (state==='error') { badge.classList.add('badge-error'); badge.innerHTML='<i class="fa-solid fa-xmark"></i> Eroare'; }
-  else { badge.classList.add('badge-wait'); badge.textContent='Aștept'; }
-
-  if (subText) document.getElementById(`ps${n}-sub`).textContent = subText;
-
-  // connector
-  if (n < 3) {
-    const conn = document.getElementById(`conn-${n}`);
-    if (state==='done') conn.classList.add('done');
-    else conn.classList.remove('done');
+window.addEventListener('load', async () => {
+  const token = getToken();
+  if (token) {
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/me`, { headers:{'Authorization':`Bearer ${token}`} });
+      if (res.ok) { const data = await res.json(); authToken = token; updateUI(data.user); }
+      else if (res.status === 401) removeToken();
+    } catch(e) {}
   }
+  buildVoiceGrid();
+});
+
+// ── UI HELPERS ────────────────────────────────────────────────
+function setStep(n, state, msg) {
+  const card = document.getElementById(`step-${n}`);
+  const icon = document.getElementById(`step-${n}-icon`);
+  const status = document.getElementById(`step-${n}-status`);
+  const badge = document.getElementById(`step-${n}-badge`);
+
+  card.className = 'step-card bg-white border rounded-[1.25rem] shadow-sm overflow-hidden';
+  if (state === 'active')  { card.classList.add('border-indigo-300','active'); icon.className='w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600 text-xs shrink-0'; icon.innerHTML='<i class="fas fa-circle-notch spin"></i>'; badge.className='text-[0.6rem] font-bold uppercase tracking-wide px-2 py-1 rounded-md bg-amber-100 text-amber-600 shrink-0'; badge.textContent='running'; }
+  else if (state === 'done')   { card.classList.add('border-green-200','done'); icon.className='w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center text-green-600 text-xs shrink-0'; icon.innerHTML='<i class="fas fa-check"></i>'; badge.className='text-[0.6rem] font-bold uppercase tracking-wide px-2 py-1 rounded-md bg-green-100 text-green-700 shrink-0'; badge.textContent='done'; }
+  else if (state === 'error')  { card.classList.add('border-red-200','error'); icon.className='w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center text-red-500 text-xs shrink-0'; icon.innerHTML='<i class="fas fa-xmark"></i>'; badge.className='text-[0.6rem] font-bold uppercase tracking-wide px-2 py-1 rounded-md bg-red-100 text-red-500 shrink-0'; badge.textContent='error'; }
+  else if (state === 'skip')   { card.classList.add('border-slate-200'); icon.className='w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 text-xs shrink-0'; icon.innerHTML='<i class="fas fa-forward"></i>'; badge.className='text-[0.6rem] font-bold uppercase tracking-wide px-2 py-1 rounded-md bg-slate-100 text-slate-400 shrink-0'; badge.textContent='skip'; }
+  else { card.classList.add('border-slate-200'); }
+
+  if (msg) status.textContent = msg;
 }
 
 function setStepBody(n, html) {
-  document.getElementById(`ps${n}-body`).innerHTML = html;
+  const body = document.getElementById(`step-${n}-body`);
+  body.innerHTML = html;
+  body.classList.remove('hidden');
 }
 
-function setRibbon(title, sub, step, totalSteps) {
+function setRibbon(title, sub, done, total) {
+  const ribbon = document.getElementById('ribbon');
+  ribbon.classList.remove('hidden');
   document.getElementById('ribbon-title').textContent = title;
   document.getElementById('ribbon-sub').textContent = sub;
-  document.getElementById('ribbon-step').textContent = `${step}/${totalSteps}`;
-  document.getElementById('progress-fill').style.width = `${Math.round((step/totalSteps)*100)}%`;
+  document.getElementById('ribbon-progress').textContent = `${done}/${total}`;
 }
 
-function addFinalResult(html) {
-  document.getElementById('final-results').insertAdjacentHTML('beforeend', html);
+function hideRibbon() { document.getElementById('ribbon').classList.add('hidden'); }
+
+function resetSteps() {
+  for (let i = 1; i <= 3; i++) {
+    setStep(i, 'wait', 'În așteptare');
+    document.getElementById(`step-${i}-body`).classList.add('hidden');
+    document.getElementById(`step-${i}-body`).innerHTML = '';
+  }
+  document.getElementById('final-result').classList.add('hidden');
+  document.getElementById('final-body').innerHTML = '';
+  hideRibbon();
 }
 
-/* ══════════════════════════════════════════════
-   MAIN PIPELINE
-══════════════════════════════════════════════ */
-async function startPipeline() {
+function toggleManualText() {
+  const show = document.getElementById('manual-text-toggle').checked;
+  document.getElementById('manual-text-box').classList.toggle('hidden', !show);
+}
+
+// ── VOICE GRID ────────────────────────────────────────────────
+const VOICES = [
+  { id:'nPczCjzI2devNBz1zQrb', name:'Rachel',    lang:'EN 🇺🇸', emoji:'👩' },
+  { id:'TX3LPaxmHKxFdv7VOQHJ', name:'Liam',      lang:'EN 🇺🇸', emoji:'👨' },
+  { id:'pFZP5JQG7iQjIQuC4Bku', name:'Lily',      lang:'EN 🇬🇧', emoji:'👧' },
+  { id:'XB0fDUnXU5powFXDhCwa', name:'Charlotte', lang:'EN 🇬🇧', emoji:'👩‍🦰' },
+  { id:'IKne3meq5aSn9XLyUdCD', name:'Charlie',   lang:'EN 🇦🇺', emoji:'🧑' },
+  { id:'pqHfZKP75CvOlQylNhV4', name:'Bill',      lang:'EN 🇺🇸', emoji:'👴' },
+  { id:'onwK4e9ZLuTAKqWW03F9', name:'Daniel',    lang:'EN 🇬🇧', emoji:'🎙' },
+  { id:'cgSgspJ2msm6clMCkdW9', name:'Jessica',   lang:'EN 🇺🇸', emoji:'💁' },
+  { id:'FGY2WhTYpPnrIDTdsKH5', name:'Laura',     lang:'EN 🇺🇸', emoji:'🌸' },
+  { id:'JBFqnCBsd6RMkjVDRZzb', name:'George',    lang:'EN 🇬🇧', emoji:'🎩' },
+];
+
+let selectedVoice = VOICES[0];
+
+function buildVoiceGrid() {
+  const grid = document.getElementById('voice-grid');
+  grid.innerHTML = '';
+  VOICES.forEach(v => {
+    const el = document.createElement('div');
+    el.className = 'vcard' + (v.id === selectedVoice.id ? ' selected' : '');
+    el.innerHTML = `<div class="text-lg leading-none">${v.emoji}</div><div class="text-[0.65rem] font-bold text-slate-800 truncate">${v.name}</div><div class="text-[0.55rem] text-slate-400 truncate">${v.lang}</div>`;
+    el.onclick = () => { selectedVoice = v; buildVoiceGrid(); };
+    grid.appendChild(el);
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+// PIPELINE
+// ══════════════════════════════════════════════════════════════
+let pipelineResults = {};
+
+async function runPipeline() {
   if (!requireAuth()) return;
 
   const url = document.getElementById('yt-url').value.trim();
-  if (!url || !url.startsWith('http')) {
-    alert('Introdu un link valid!'); return;
-  }
-  if (!selectedVoice) {
-    alert('Selectează o voce!'); return;
-  }
+  if (!url) { alert('Lipește un link YouTube mai întâi!'); return; }
+  if (!/youtu/.test(url)) { alert('Link YouTube invalid!'); return; }
 
+  const quality   = document.getElementById('dl-quality').value;
+  const limba     = document.getElementById('dl-limba').value;
   const skipVoice = document.getElementById('skip-voice').checked;
-  const skipCut   = document.getElementById('skip-smartcut').checked;
-  const wantTranscript = document.getElementById('dl-transcript').checked;
-  const manualText = document.getElementById('voice-text').value.trim();
-  const totalSteps = (skipVoice ? 0 : 1) + (skipCut ? 0 : 1) + 1; // download always
+  const skipCut   = document.getElementById('skip-cut').checked;
+  const manualText= document.getElementById('manual-text-toggle').checked ? document.getElementById('manual-text').value.trim() : null;
 
-  // Hide config, show pipeline
-  document.getElementById('config-card').style.display = 'none';
-  document.getElementById('pipeline-running').style.display = '';
-  document.getElementById('pipeline-done').style.display = 'none';
-  document.getElementById('final-results').innerHTML = '';
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-circle-notch spin"></i> Se procesează...';
+
+  resetSteps();
   pipelineResults = {};
 
-  // ── STEP 1: DOWNLOAD ──────────────────────────────────
-  setStep(1, 'active', 'Se descarcă videoclipul...');
-  setRibbon('Descărcare video...', 'Step 1 din ' + totalSteps + ' · nu închide pagina', 0, totalSteps);
+  const totalSteps = (skipVoice ? 0 : 1) + (skipCut ? 0 : 1) + 1;
 
-  let transcript = null;
+  // ── STEP 1: DOWNLOAD + TRANSCRIERE ───────────────────────
+  setStep(1, 'active', 'Se descarcă și transcrie videoclipul...');
+  setRibbon('Download + Transcriere...', `Step 1 · ${quality}p · nu închide pagina`, 0, totalSteps);
+  setStepBody(1, `<div class="status-info flex items-center gap-2 pulse text-sm"><i class="fas fa-circle-notch spin"></i> Se descarcă video ${quality}p și se extrage transcrierea în paralel...</div>`);
 
   try {
-    // Dacă voice e activ, forțăm și mp3 pentru Whisper (fallback dacă nu vin subtitrările)
-    const dlFormat = document.getElementById('dl-format').value;
-    const needAudio = !skipVoice && !manualText;
-    const effectiveFormat = needAudio && dlFormat === 'mp4' ? 'both' : dlFormat;
-
-    const dlRes = await fetch(`${API_BASE}/api/download`, {
+    const res = await fetch(`${API_BASE}/api/process-yt`, {
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':`Bearer ${authToken}`},
-      body: JSON.stringify({
-        url,
-        format: effectiveFormat,
-        quality: document.getElementById('dl-quality').value,
-        transcript: !manualText  // întotdeauna încearcă subtitrările dacă nu e text manual
-      })
+      body: JSON.stringify({ url, quality, limba })
     });
-    const dlData = await dlRes.json();
-    if (!dlRes.ok) throw new Error(dlData.error || 'Eroare download');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Eroare server');
 
-    pipelineResults.videoUrl = dlData.videoUrl;
-    pipelineResults.audioUrl = dlData.audioUrl;
-    transcript = dlData.transcript || null;
+    pipelineResults.videoUrl = data.downloadUrl;
+    pipelineResults.transcript = data.translatedText || data.originalText || null;
 
-    if (dlData.creditsLeft !== undefined) {
-      document.getElementById('nav-credits').textContent = parseFloat(dlData.creditsLeft).toFixed(1);
-    }
+    // Update credite nav
+    if (data.creditsLeft !== undefined) document.getElementById('nav-credits').textContent = Math.floor(data.creditsLeft);
+    if (data.voice_characters !== undefined) document.getElementById('nav-chars').textContent = (data.voice_characters||0).toLocaleString();
 
-    let dlBodyHtml = '<div style="display:flex;gap:.5rem;flex-wrap:wrap;padding-top:.25rem">';
-    if (dlData.videoUrl) dlBodyHtml += `<a href="${dlData.videoUrl}" class="btn btn-ghost btn-sm" download><i class="fa-solid fa-film"></i> Video</a>`;
-    if (dlData.audioUrl) dlBodyHtml += `<a href="${dlData.audioUrl}" class="btn btn-ghost btn-sm" download><i class="fa-solid fa-music"></i> Audio</a>`;
-    dlBodyHtml += '</div>';
-    if (transcript) dlBodyHtml += `<div class="transcript-box" style="margin-top:.65rem;font-size:.75rem">${transcript.substring(0,400)}${transcript.length>400?'..':''}</div>`;
-    setStepBody(1, dlBodyHtml);
-    setStep(1, 'done', 'Descărcare completă ✓');
+    const dlHtml = `
+      <div class="flex flex-col gap-3">
+        <a href="${data.downloadUrl}" class="w-full flex items-center justify-center gap-2 bg-slate-900 hover:bg-viralio-600 text-white px-5 py-2.5 rounded-xl font-bold shadow-md transition-all text-sm" download>
+          <i class="fas fa-download text-indigo-400"></i> Descarcă Video MP4 ${quality}p
+        </a>
+        ${data.translatedText ? `
+        <div class="grid grid-cols-2 gap-2">
+          <button onclick="toggleTranscript('orig')" class="bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold py-2 rounded-lg text-xs transition-colors"><i class="fas fa-closed-captioning text-slate-400 mr-1"></i>Original</button>
+          <button onclick="toggleTranscript('trans')" class="bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 text-indigo-700 font-semibold py-2 rounded-lg text-xs transition-colors"><i class="fas fa-language mr-1"></i>Traducere (${limba})</button>
+        </div>
+        <div id="transcript-orig" class="hidden bg-slate-50 rounded-xl p-4 border border-slate-200 relative">
+          <button onclick="copyText('transcript-orig-text', this)" class="absolute top-2 right-2 text-xs bg-white border border-slate-200 text-slate-600 px-2 py-1 rounded-lg hover:bg-slate-100 font-bold"><i class="fas fa-copy"></i></button>
+          <p class="text-[0.65rem] font-bold text-slate-400 uppercase mb-2">Transcript Original</p>
+          <p id="transcript-orig-text" class="text-sm text-slate-700 max-h-52 overflow-y-auto whitespace-pre-wrap leading-relaxed pr-2">${escHtml(data.originalText||'')}</p>
+        </div>
+        <div id="transcript-trans" class="hidden bg-indigo-50 rounded-xl p-4 border border-indigo-100 relative">
+          <button onclick="copyText('transcript-trans-text', this)" class="absolute top-2 right-2 text-xs bg-white border border-indigo-200 text-indigo-600 px-2 py-1 rounded-lg hover:bg-indigo-100 font-bold"><i class="fas fa-copy"></i></button>
+          <p class="text-[0.65rem] font-bold text-indigo-400 uppercase mb-2">Traducere · ${limba}</p>
+          <p id="transcript-trans-text" class="text-sm text-slate-800 font-medium max-h-52 overflow-y-auto whitespace-pre-wrap leading-relaxed pr-2">${escHtml(data.translatedText||'')}</p>
+        </div>` : ''}
+      </div>`;
+    setStepBody(1, dlHtml);
+    setStep(1, 'done', `Video ${quality}p descărcat ✓`);
     setRibbon('Download complet!', 'Continuăm cu voice-over...', 1, totalSteps);
 
   } catch(e) {
     setStep(1, 'error', e.message);
-    setStepBody(1, `<div class="status-box status-error"><span class="status-icon"><i class="fa-solid fa-circle-xmark"></i></span><span>${e.message}</span></div>`);
-    finishPipelineWithError('Descărcarea a eșuat. Verifică link-ul și încearcă din nou.');
+    setStepBody(1, `<div class="status-error text-sm flex items-start gap-2"><i class="fas fa-circle-xmark mt-0.5 shrink-0"></i><div>${e.message}</div></div>`);
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> PORNEȘTE PIPELINE · <span class="bg-slate-200 rounded-md px-1.5 py-0.5 text-xs font-black text-slate-600">2 credite</span>';
     return;
   }
 
-  // ── STEP 2: VOICE ─────────────────────────────────────
+  // ── STEP 2: VOICE ─────────────────────────────────────────
   if (!skipVoice) {
-    let textToSpeak = manualText || transcript;
+    let textToSpeak = manualText || pipelineResults.transcript;
 
-    // ── Dacă nu avem text → Whisper din audio descărcat ──
     if (!textToSpeak) {
-      const audioSrc = pipelineResults.audioUrl || pipelineResults.videoUrl;
-      if (!audioSrc) {
-        setStep(2, 'error', 'Nicio sursă de text sau audio');
-        setStepBody(2, `<div class="status-box status-error"><span class="status-icon"><i class="fa-solid fa-circle-xmark"></i></span><span>Nu s-a putut transcrie — niciun fișier audio disponibil.</span></div>`);
-        finishPipelineWithError('Voice-over sărit — nicio sursă de text.');
-        return;
-      }
+      setStep(2, 'error', 'Nicio sursă de text');
+      setStepBody(2, `<div class="status-error text-sm">Nu există transcript pentru voice-over. Activează "Text manual" și scrie textul.</div>`);
+    } else {
+      setStep(2, 'active', `Generare cu ${selectedVoice.name}...`);
+      setRibbon(`Voice-over cu ${selectedVoice.name}...`, `Step 2 · ${textToSpeak.length} chars · poate dura 30-60s`, 1, totalSteps);
+      setStepBody(2, `<div class="status-info flex items-center gap-2 pulse text-sm"><i class="fas fa-circle-notch spin"></i> Se generează voice-over cu ${selectedVoice.name} (${textToSpeak.length} caractere)...</div>`);
 
-      setStep(2, 'active', 'Transcriere Whisper...');
-      setRibbon('Transcriere audio cu Whisper...', 'Step 2 · detectăm textul automat', 1, totalSteps);
-      setStepBody(2, `<div class="status-box status-info pulse"><span class="status-icon"><i class="fa-solid fa-microphone-lines"></i></span><span>Se transcrie audio cu Whisper AI... poate dura 30-60s</span></div>`);
+      // Traducere suplimentară dacă e nevoie
+      if (!manualText && pipelineResults.transcript) {
+        try {
+          const tRes = await fetch(`${API_BASE}/api/translate`, { method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${authToken}`}, body: JSON.stringify({ text: textToSpeak, limba }) });
+          const tData = await tRes.json();
+          if (tRes.ok && tData.translated) textToSpeak = tData.translated;
+        } catch(e) {}
+      }
 
       try {
-        // Descarcă audio-ul ca blob și trimite la Whisper
-        const audioBlob = await fetch(audioSrc).then(r => r.blob());
-        const audioFile = new File([audioBlob], 'audio.mp3', { type: 'audio/mpeg' });
-        const formData = new FormData();
-        formData.append('audio', audioFile);
-
-        const wRes = await fetch(`${API_BASE}/api/transcribe`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${authToken}` },
-          body: formData
+        const vRes = await fetch(`${API_BASE}/api/generate`, {
+          method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${authToken}`},
+          body: JSON.stringify({ text: textToSpeak, voiceId: selectedVoice.id, voice: selectedVoice.name, stability: parseFloat(document.getElementById('sl-stability').value), similarity_boost: parseFloat(document.getElementById('sl-similarity').value), speed: parseFloat(document.getElementById('sl-speed').value) })
         });
-        const wData = await wRes.json();
-        if (!wRes.ok) throw new Error(wData.error || 'Eroare Whisper');
-        textToSpeak = wData.transcript;
-        console.log('Whisper transcript:', textToSpeak?.substring(0, 100));
+        const vData = await vRes.json();
+        if (!vRes.ok) throw new Error(vData.error || 'Eroare voice');
+
+        pipelineResults.voiceUrl = vData.audioUrl;
+        if (vData.remaining_chars !== undefined) document.getElementById('nav-chars').textContent = (vData.remaining_chars||0).toLocaleString();
+
+        setStepBody(2, `<div class="flex flex-col gap-3">
+          <audio controls src="${vData.audioUrl}" class="w-full rounded-xl" style="filter:none"></audio>
+          <a href="${vData.audioUrl}" class="flex items-center justify-center gap-2 bg-slate-50 border border-slate-200 hover:border-indigo-300 text-slate-700 font-bold py-2 rounded-xl text-sm transition-colors" download><i class="fas fa-download text-indigo-400"></i> Descarcă MP3</a>
+        </div>`);
+        setStep(2, 'done', `Voice generat cu ${selectedVoice.name} ✓`);
+        setRibbon('Voice gata!', 'Rulăm Smart Cut...', 2, totalSteps);
+
       } catch(e) {
-        setStep(2, 'error', 'Transcriere eșuată: ' + e.message);
-        setStepBody(2, `<div class="status-box status-error"><span class="status-icon"><i class="fa-solid fa-circle-xmark"></i></span><span>Whisper: ${e.message}</span></div>`);
-        finishPipelineWithError('Transcrierea a eșuat.');
-        return;
+        setStep(2, 'error', e.message);
+        setStepBody(2, `<div class="status-error text-sm">${e.message}</div>`);
       }
-    }
-
-    // ── Traducere automată în română (dacă textul nu e deja în română) ──
-    setStep(2, 'active', 'Traducere în română...');
-    setRibbon('Traducere automată...', 'Step 2 · traducem textul în română', 1, totalSteps);
-    setStepBody(2, `<div class="status-box status-info pulse"><span class="status-icon"><i class="fa-solid fa-language"></i></span><span>Se traduce textul în română...</span></div>`);
-
-    try {
-      const tRes = await fetch(`${API_BASE}/api/translate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-        body: JSON.stringify({ text: textToSpeak })
-      });
-      const tData = await tRes.json();
-      if (!tRes.ok) throw new Error(tData.error || 'Eroare traducere');
-      textToSpeak = tData.translated;
-    } catch(e) {
-      // traducerea a eșuat — continuăm cu textul original
-      console.warn('Traducere eșuată (continuăm cu original):', e.message);
-    }
-
-    setStep(2, 'active', `Generare cu ${selectedVoice.name}...`);
-    setRibbon(`Generare voce (${selectedVoice.name})...`, 'Step 2 din ' + totalSteps + ' · poate dura 30-60s', 1, totalSteps);
-    setStepBody(2, `<div class="status-box status-info pulse"><span class="status-icon"><i class="fa-solid fa-waveform-lines"></i></span><span>Se generează voice-over cu ${selectedVoice.name}...</span></div>`);
-
-    try {
-      const vRes = await fetch(`${API_BASE}/api/generate`, {
-        method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':`Bearer ${authToken}`},
-        body: JSON.stringify({
-          text: textToSpeak,
-          voiceId: selectedVoice.id,
-          voice: selectedVoice.name,
-          stability: parseFloat(document.getElementById('sl-stability').value),
-          similarity_boost: parseFloat(document.getElementById('sl-similarity').value),
-          speed: parseFloat(document.getElementById('sl-speed').value)
-        })
-      });
-      const vData = await vRes.json();
-      if (!vRes.ok) throw new Error(vData.error || 'Eroare voice');
-
-      pipelineResults.voiceUrl = vData.audioUrl;
-
-      if (vData.remaining_chars !== undefined) {
-        document.getElementById('nav-chars').textContent = (vData.remaining_chars || 0).toLocaleString();
-      }
-
-      setStepBody(2, `<div style="padding-top:.25rem">
-        <audio controls src="${vData.audioUrl}" style="width:100%;border-radius:.5rem;filter:invert(1) hue-rotate(180deg);opacity:.85;margin-bottom:.5rem"></audio>
-        <a href="${vData.audioUrl}" class="btn btn-ghost btn-sm" download><i class="fa-solid fa-download"></i> Descarcă MP3</a>
-      </div>`);
-      setStep(2, 'done', `Voce generată cu ${selectedVoice.name} ✓`);
-      setRibbon('Voice-over gata!', 'Rulăm Smart Cut...', 2, totalSteps);
-
-    } catch(e) {
-      setStep(2, 'error', e.message);
-      setStepBody(2, `<div class="status-box status-error"><span class="status-icon"><i class="fa-solid fa-circle-xmark"></i></span><span>${e.message}</span></div>`);
-      // Continuăm cu ce avem
     }
   } else {
-    setStep(2, 'done', 'Sărit de utilizator');
-    setStepBody(2, '<p style="font-size:.75rem;color:var(--text-dim);padding-top:.25rem">Voice-over sărit la cerere.</p>');
+    setStep(2, 'skip', 'Sărit la cerere');
   }
 
-  // ── STEP 3: SMART CUT ─────────────────────────────────
-  const audioForCut = pipelineResults.voiceUrl || pipelineResults.audioUrl;
-
+  // ── STEP 3: SMART CUT ─────────────────────────────────────
+  const audioForCut = pipelineResults.voiceUrl;
   if (!skipCut && audioForCut) {
     setStep(3, 'active', 'Se elimină pauzele...');
-    setRibbon('Smart Cut...', 'Step final · eliminare pauze automat', 2, totalSteps);
+    setRibbon('Smart Cut...', 'Step final · elimină pauzele din audio', 2, totalSteps);
+    setStepBody(3, `<div class="status-info flex items-center gap-2 pulse text-sm"><i class="fas fa-circle-notch spin"></i> Smart Cut procesează audio-ul...</div>`);
 
     try {
-      // Descarcă fișierul audio ca blob pentru a-l trimite la smart-cut
       const audioBlob = await fetch(audioForCut).then(r => r.blob());
-      const audioFile = new File([audioBlob], 'audio.mp3', {type:'audio/mpeg'});
-
+      const audioFile = new File([audioBlob], 'audio.mp3', { type:'audio/mpeg' });
       const formData = new FormData();
       formData.append('file', audioFile);
       formData.append('minSilence', document.getElementById('sl-silence').value);
-      formData.append('threshold', document.getElementById('sl-thresh').value);
+      formData.append('threshold', document.getElementById('sl-thresh').value + 'dB');
 
-      const scRes = await fetch(`${API_BASE}/api/smart-cut`, {
-        method:'POST',
-        headers:{'Authorization':`Bearer ${authToken}`},
-        body: formData
-      });
+      const scRes = await fetch(`${API_BASE}/api/smart-cut`, { method:'POST', headers:{'Authorization':`Bearer ${authToken}`}, body: formData });
       const scData = await scRes.json();
       if (!scRes.ok) throw new Error(scData.error || 'Eroare smart cut');
 
       pipelineResults.cutUrl = scData.downloadUrl;
+      if (scData.creditsLeft !== undefined) document.getElementById('nav-credits').textContent = Math.floor(scData.creditsLeft);
 
-      if (scData.creditsLeft !== undefined) {
-        document.getElementById('nav-credits').textContent = parseFloat(scData.creditsLeft).toFixed(1);
-      }
-
-      setStepBody(3, `<div style="padding-top:.25rem">
-        <audio controls src="${scData.downloadUrl}" style="width:100%;border-radius:.5rem;filter:invert(1) hue-rotate(180deg);opacity:.85;margin-bottom:.5rem"></audio>
-        <a href="${scData.downloadUrl}" class="btn btn-ghost btn-sm" download><i class="fa-solid fa-download"></i> Descarcă Audio Final</a>
+      setStepBody(3, `<div class="flex flex-col gap-3">
+        <audio controls src="${scData.downloadUrl}" class="w-full rounded-xl"></audio>
+        <a href="${scData.downloadUrl}" class="flex items-center justify-center gap-2 bg-slate-50 border border-slate-200 hover:border-green-300 text-slate-700 font-bold py-2 rounded-xl text-sm transition-colors" download><i class="fas fa-download text-green-500"></i> Descarcă Audio Final</a>
       </div>`);
       setStep(3, 'done', 'Smart Cut finalizat ✓');
 
     } catch(e) {
       setStep(3, 'error', e.message);
-      setStepBody(3, `<div class="status-box status-error"><span class="status-icon"><i class="fa-solid fa-circle-xmark"></i></span><span>${e.message}</span></div>`);
+      setStepBody(3, `<div class="status-error text-sm">${e.message}</div>`);
     }
-  } else if (!skipCut && !audioForCut) {
-    setStep(3, 'done', 'Nicio sursă audio de procesat');
+  } else if (skipCut) {
+    setStep(3, 'skip', 'Sărit la cerere');
   } else {
-    setStep(3, 'done', 'Sărit de utilizator');
-    setStepBody(3, '<p style="font-size:.75rem;color:var(--text-dim);padding-top:.25rem">Smart Cut sărit la cerere.</p>');
+    setStep(3, 'skip', 'Fără audio generat');
   }
 
-  // ── FINAL ─────────────────────────────────────────────
-  setRibbon('Pipeline complet! 🎉', 'Toate etapele au fost finalizate', totalSteps, totalSteps);
-  document.getElementById('ribbon-icon').className = 'fa-solid fa-circle-check';
-  document.getElementById('ribbon-icon').style.animation = 'none';
+  // ── FINAL ─────────────────────────────────────────────────
+  const finalBody = document.getElementById('final-body');
+  const items = [];
+  if (pipelineResults.videoUrl) items.push(`<a href="${pipelineResults.videoUrl}" class="flex items-center gap-3 bg-slate-900 hover:bg-viralio-600 text-white px-5 py-3 rounded-xl font-bold transition-all text-sm shadow-md" download><i class="fas fa-film text-indigo-300"></i> Video MP4 ${quality}p</a>`);
+  if (pipelineResults.voiceUrl) items.push(`<a href="${pipelineResults.voiceUrl}" class="flex items-center gap-3 bg-indigo-50 border border-indigo-200 hover:border-indigo-400 text-indigo-800 px-5 py-3 rounded-xl font-bold transition-all text-sm" download><i class="fas fa-microphone-lines text-indigo-500"></i> Voice-over MP3</a>`);
+  if (pipelineResults.cutUrl)   items.push(`<a href="${pipelineResults.cutUrl}" class="flex items-center gap-3 bg-green-50 border border-green-200 hover:border-green-400 text-green-800 px-5 py-3 rounded-xl font-bold transition-all text-sm" download><i class="fas fa-scissors text-green-500"></i> Smart Cut MP3</a>`);
 
-  // Build final results
-  let finalHtml = '';
-  if (pipelineResults.videoUrl)
-    finalHtml += `<a href="${pipelineResults.videoUrl}" class="btn btn-ghost btn-sm" download><i class="fa-solid fa-film"></i> Video</a>`;
-  if (pipelineResults.voiceUrl)
-    finalHtml += `<a href="${pipelineResults.voiceUrl}" class="btn btn-ghost btn-sm" download><i class="fa-solid fa-microphone"></i> Voice MP3</a>`;
-  if (pipelineResults.cutUrl)
-    finalHtml += `<a href="${pipelineResults.cutUrl}" class="btn btn-success btn-sm" download><i class="fa-solid fa-scissors"></i> Audio Final (Smart Cut)</a>`;
+  if (items.length > 0) {
+    finalBody.innerHTML = items.join('');
+    document.getElementById('final-result').classList.remove('hidden');
+    document.getElementById('final-result').scrollIntoView({ behavior:'smooth', block:'nearest' });
+  }
 
-  document.getElementById('final-results').innerHTML = finalHtml || '<span style="font-size:.82rem;color:var(--text-muted)">Verifică pașii de mai sus pentru descărcări individuale.</span>';
-  document.getElementById('pipeline-done').style.display = '';
+  hideRibbon();
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> PORNEȘTE DIN NOU · <span class="bg-white/20 rounded-md px-1.5 py-0.5 text-xs font-black">2 credite</span>';
 }
 
-function finishPipelineWithError(msg) {
-  document.getElementById('ribbon-title').textContent = 'Pipeline oprit';
-  document.getElementById('ribbon-sub').textContent = msg;
-  document.getElementById('ribbon-icon').className = 'fa-solid fa-circle-xmark';
-  document.getElementById('ribbon-icon').style.animation = 'none';
-  document.getElementById('pipeline-done').style.display = '';
-  document.getElementById('final-results').innerHTML = `<button class="btn btn-ghost btn-sm" onclick="resetPipeline()"><i class="fa-solid fa-rotate-left"></i> Încearcă din nou</button>`;
-}
-
-function resetPipeline() {
-  document.getElementById('config-card').style.display = '';
-  document.getElementById('pipeline-running').style.display = 'none';
-  document.getElementById('yt-url').value = '';
-  document.getElementById('voice-text').value = '';
-  [1,2,3].forEach(n => { setStep(n,'wait',''); setStepBody(n,''); });
-  pipelineResults = {};
-  window.scrollTo({top:0,behavior:'smooth'});
-}
-
-async function goToCaptionRemover() {
-  const videoUrl = pipelineResults.videoUrl;
-  if (!videoUrl) { switchTab('caption'); return; }
-
-  switchTab('caption');
-  window.scrollTo({top:0,behavior:'smooth'});
-
-  try {
-    // Descarcă videoul pipeline ca blob și îl încarcă în Caption Remover
-    const res = await fetch(videoUrl);
-    const blob = await res.blob();
-    const file = new File([blob], 'pipeline_video.mp4', { type: 'video/mp4' });
-    handleCapFile(file);
-  } catch(e) {
-    // Dacă fetch eșuează, deschide tab-ul gol
-    console.warn('Auto-load video failed:', e.message);
+// ── UTILS ─────────────────────────────────────────────────────
+function toggleTranscript(type) {
+  document.getElementById('transcript-orig').classList.toggle('hidden', type !== 'orig' || !document.getElementById('transcript-orig').classList.contains('hidden'));
+  document.getElementById('transcript-trans').classList.toggle('hidden', type !== 'trans' || !document.getElementById('transcript-trans').classList.contains('hidden'));
+  if (type === 'orig') {
+    const el = document.getElementById('transcript-orig');
+    el.classList.toggle('hidden');
+    document.getElementById('transcript-trans').classList.add('hidden');
+  } else {
+    const el = document.getElementById('transcript-trans');
+    el.classList.toggle('hidden');
+    document.getElementById('transcript-orig').classList.add('hidden');
   }
 }
 
-/* ══════════════════════════════════════════════
-   CAPTION REMOVER
-══════════════════════════════════════════════ */
-let capCanvas, capCtx, capVideoEl;
-let isDragging=false, isResizing=false;
-let boxX=5,boxY=70,boxW=90,boxH=15;
-let dragStartX=0,dragStartY=0,boxStartX=0,boxStartY=0;
-let capVideoFile = null;
-
-function handleCapFile(file) {
-  if (!file) return;
-  capVideoFile = file;
-  document.getElementById('cap-upload-zone').style.display = 'none';
-  document.getElementById('cap-editor').style.display = 'block';
-
-  capVideoEl = document.getElementById('cap-video');
-  capVideoEl.src = URL.createObjectURL(file);
-  capVideoEl.load();
-
-  // Capture a frame for preview
-  capVideoEl.addEventListener('loadeddata', () => {
-    capVideoEl.currentTime = 1;
+function copyText(id, btn) {
+  const text = document.getElementById(id)?.innerText;
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-check text-green-600"></i>';
+    setTimeout(() => btn.innerHTML = orig, 2000);
   });
-  capVideoEl.addEventListener('seeked', () => {
-    const canvas2 = document.createElement('canvas');
-    canvas2.width = capVideoEl.videoWidth;
-    canvas2.height = capVideoEl.videoHeight;
-    canvas2.getContext('2d').drawImage(capVideoEl, 0, 0);
-    document.getElementById('cap-preview').src = canvas2.toDataURL('image/jpeg');
-    document.getElementById('cap-preview').onload = initCanvas;
-  }, {once:true});
 }
 
-function handleCapDrop(e) {
-  e.preventDefault();
-  document.getElementById('cap-upload-zone').classList.remove('drag');
-  const file = e.dataTransfer.files[0];
-  if (file) handleCapFile(file);
-}
+function escHtml(s) { const d=document.createElement('div'); d.appendChild(document.createTextNode(s)); return d.innerHTML; }
 
-function initCanvas() {
-  capCanvas = document.getElementById('cap-canvas');
-  capCtx = capCanvas.getContext('2d');
-  const preview = document.getElementById('cap-preview');
-  capCanvas.width = preview.offsetWidth;
-  capCanvas.height = preview.offsetHeight;
-  new ResizeObserver(() => {
-    capCanvas.width = preview.offsetWidth;
-    capCanvas.height = preview.offsetHeight;
-    drawBox();
-  }).observe(preview);
-  setupCanvasEvents();
-  drawBox();
-}
-
-function getBoxPixels() {
-  const W=capCanvas.width, H=capCanvas.height;
-  return { x:boxX/100*W, y:boxY/100*H, w:boxW/100*W, h:boxH/100*H };
-}
-
-function setupCanvasEvents() {
-  capCanvas.addEventListener('mousedown', onMouseDown);
-  capCanvas.addEventListener('mousemove', onMouseMove);
-  capCanvas.addEventListener('mouseup', onMouseUp);
-  capCanvas.addEventListener('touchstart', e=>{onMouseDown(e.touches[0]);e.preventDefault();},{passive:false});
-  capCanvas.addEventListener('touchmove', e=>{onMouseMove(e.touches[0]);e.preventDefault();},{passive:false});
-  capCanvas.addEventListener('touchend', onMouseUp);
-}
-
-function onMouseDown(e) {
-  const r=capCanvas.getBoundingClientRect();
-  const mx=e.clientX-r.left, my=e.clientY-r.top;
-  const b=getBoxPixels();
-  const inResize = mx>=b.x+b.w-12 && mx<=b.x+b.w+4 && my>=b.y+b.h-12 && my<=b.y+b.h+4;
-  const inBox = mx>=b.x && mx<=b.x+b.w && my>=b.y && my<=b.y+b.h;
-  if (inResize) { isResizing=true; }
-  else if (inBox) { isDragging=true; dragStartX=mx; dragStartY=my; boxStartX=boxX; boxStartY=boxY; }
-  else {
-    const W=capCanvas.width,H=capCanvas.height;
-    boxX=mx/W*100; boxY=my/H*100; boxW=1; boxH=1;
-    isResizing=true;
-    drawBox(); syncInputsFromBox();
-  }
-}
-function onMouseMove(e) {
-  const r=capCanvas.getBoundingClientRect();
-  const mx=e.clientX-r.left, my=e.clientY-r.top;
-  const W=capCanvas.width, H=capCanvas.height;
-  if (isDragging) {
-    const dx=(mx-dragStartX)/W*100, dy=(my-dragStartY)/H*100;
-    boxX=Math.max(0,Math.min(100-boxW, boxStartX+dx));
-    boxY=Math.max(0,Math.min(100-boxH, boxStartY+dy));
-    drawBox(); syncInputsFromBox();
-  } else if (isResizing) {
-    const b=getBoxPixels();
-    boxW=Math.max(2,(mx-b.x)/W*100);
-    boxH=Math.max(2,(my-b.y)/H*100);
-    drawBox(); syncInputsFromBox();
-  }
-}
-function onMouseUp() { isDragging=false; isResizing=false; }
-
-function drawBox() {
-  if (!capCtx||!capCanvas) return;
-  capCtx.clearRect(0,0,capCanvas.width,capCanvas.height);
-  const b=getBoxPixels();
-  capCtx.fillStyle='rgba(236,72,153,0.18)';
-  capCtx.fillRect(b.x,b.y,b.w,b.h);
-  capCtx.strokeStyle='#ec4899';
-  capCtx.lineWidth=2;
-  capCtx.strokeRect(b.x,b.y,b.w,b.h);
-  capCtx.fillStyle='#ec4899';
-  capCtx.beginPath();
-  capCtx.arc(b.x+b.w,b.y+b.h,6,0,Math.PI*2);
-  capCtx.fill();
-  capCtx.fillStyle='rgba(236,72,153,0.9)';
-  capCtx.font='bold 11px DM Sans,sans-serif';
-  capCtx.fillText(`${Math.round(boxW)}×${Math.round(boxH)}%`,b.x+4,b.y>12?b.y-4:b.y+14);
-}
-
-function syncInputsFromBox() {
-  document.getElementById('cap-x').value=Math.round(boxX);
-  document.getElementById('cap-y').value=Math.round(boxY);
-  document.getElementById('cap-w').value=Math.round(boxW);
-  document.getElementById('cap-h').value=Math.round(boxH);
-}
-function syncBoxFromInputs() {
-  boxX=parseFloat(document.getElementById('cap-x').value)||5;
-  boxY=parseFloat(document.getElementById('cap-y').value)||70;
-  boxW=parseFloat(document.getElementById('cap-w').value)||90;
-  boxH=parseFloat(document.getElementById('cap-h').value)||15;
-  drawBox();
-}
-
-async function runCaptionRemover() {
-  if (!requireAuth()) return;
-  if (!capVideoFile) { alert('Încarcă un video mai întâi!'); return; }
-
-  const btn = document.getElementById('btn-cap');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Procesare video...';
-  document.getElementById('cap-status').innerHTML = '<div class="status-box status-info"><span class="status-icon"><i class="fa-solid fa-circle-info"></i></span><span>Se elimină captionul, poate dura câteva minute...</span></div>';
-
-  const formData = new FormData();
-  formData.append('video', capVideoFile);
-  formData.append('boxY', Math.round(boxY));
-  formData.append('boxH', Math.round(boxH));
-  formData.append('boxX', Math.round(boxX));
-  formData.append('boxW', Math.round(boxW));
-
-  try {
-    const res = await fetch(`${API_BASE}/api/remove-caption`, {
-      method:'POST', headers:{'Authorization':`Bearer ${authToken}`}, body: formData
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Eroare server');
-
-    document.getElementById('cap-status').innerHTML = '';
-    document.getElementById('cap-dl-link').href = data.downloadUrl;
-    document.getElementById('cap-credits-left').textContent = (data.creditsLeft||0).toFixed(1);
-    document.getElementById('cap-result').style.display = 'block';
-    document.getElementById('nav-credits').textContent = (data.creditsLeft||0).toFixed(1);
-
-  } catch(e) {
-    document.getElementById('cap-status').innerHTML = `<div class="status-box status-error"><span class="status-icon"><i class="fa-solid fa-circle-xmark"></i></span><span>${e.message}</span></div>`;
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="fa-solid fa-eraser"></i> Elimină Captionul';
-  }
-}
-
-/* ══════════════════════════════════════════════
-   INIT
-══════════════════════════════════════════════ */
-buildVoiceGrid();
-fetchMe();
-
-document.getElementById('login-modal').addEventListener('click', function(e){
-  if(e.target===this) hideLoginModal();
+// Paste URL cu auto-detect
+document.getElementById('yt-url').addEventListener('paste', (e) => {
+  setTimeout(() => {
+    const val = document.getElementById('yt-url').value;
+    if (/youtu/.test(val)) document.getElementById('yt-url').classList.add('border-indigo-300','bg-indigo-50');
+    else document.getElementById('yt-url').classList.remove('border-indigo-300','bg-indigo-50');
+  }, 50);
 });
 </script>
 </body>
