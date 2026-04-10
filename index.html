@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Auto Pipeline | Viralio</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
+<link rel="shortcut icon" href="/assets/favicon.ico">
+<script>
+tailwind.config = {
+  theme: { extend: { fontFamily: { sans: ['Inter','sans-serif'] }, colors: { viralio: { 50:'#eef2ff',100:'#e0e7ff',500:'#6366f1',600:'#4f46e5',900:'#312e81',accent:'#ec4899' } } } }
+}
+</script>
+<style>
+  body { background:#F8FAFC; overflow-x:hidden; font-family:'Inter',sans-serif; }
+  .bg-gradient-viralio { background: linear-gradient(135deg,#4f46e5 0%,#ec4899 100%); }
+  ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#f1f5f9}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:10px}
+
+  /* LOGIN MODAL */
+  #login-modal{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);backdrop-filter:blur(8px);z-index:99999;align-items:center;justify-content:center;opacity:0;transition:.3s}
+  #login-modal.show{display:flex;opacity:1}
+  .modal-content{background:#fff;border-radius:28px;padding:40px;text-align:center;max-width:420px;width:90%;transform:translateY(20px);transition:.4s;position:relative}
+  #login-modal.show .modal-content{transform:translateY(0)}
+
+  /* STEP CARD */
+  .step-card{transition:all .3s ease}
+  .step-card.active{border-color:#6366f1!important;box-shadow:0 0 0 3px rgba(99,102,241,.1)}
+  .step-card.done{border-color:#10b981!important}
+  .step-card.error{border-color:#f87171!important}
+
+  /* VOICE GRID */
+  .vcard{transition:all .2s;cursor:pointer;border:1.5px solid #e2e8f0;border-radius:14px;padding:10px;background:#f8fafc}
+  .vcard:hover{border-color:#6366f1;background:#eef2ff;transform:translateY(-2px)}
+  .vcard.selected{border-color:#6366f1!important;background:#eef2ff!important;box-shadow:0 0 0 2px rgba(99,102,241,.25)!important}
+
+  /* SPINNER */
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .spin{animation:spin .8s linear infinite;display:inline-block}
+
+  /* PULSE */
+  @keyframes pulse-ring{0%,100%{opacity:.5}50%{opacity:1}}
+  .pulse{animation:pulse-ring 1.5s ease-in-out infinite}
+
+  /* RANGE */
+  input[type=range]{-webkit-appearance:none;width:100%;height:4px;border-radius:99px;background:#e2e8f0;outline:none;cursor:pointer}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#ec4899);box-shadow:0 2px 6px rgba(99,102,241,.4);cursor:pointer}
+
+  /* RIBBON */
+  .ribbon{background:linear-gradient(135deg,#4f46e5,#ec4899);color:#fff;border-radius:14px;padding:12px 18px}
+
+  /* STATUS BOXES */
+  .status-info{background:#eef2ff;border:1px solid #c7d2fe;color:#4338ca;border-radius:12px;padding:12px 14px}
+  .status-success{background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;border-radius:12px;padding:12px 14px}
+  .status-error{background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:12px;padding:12px 14px}
+
+  /* SHINE */
+  @keyframes shine{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+  .animate-shine-fast{animation:shine 2s infinite}
+</style>
+</head>
+<body class="md:p-4">
+
+<!-- BG GLOW -->
+<div class="fixed top-0 right-1/4 w-[500px] h-[500px] bg-indigo-500/5 rounded-full blur-[100px] pointer-events-none z-0"></div>
+<div class="fixed bottom-0 left-1/4 w-[400px] h-[400px] bg-pink-500/4 rounded-full blur-[120px] pointer-events-none z-0"></div>
+
+<div class="bg-white md:rounded-[1.5rem] min-h-screen shadow-xl overflow-hidden relative pb-24 border border-slate-100">
+
+  <!-- NAV -->
+  <div class="sticky top-0 z-50 flex w-full justify-center px-2 py-4 md:p-2">
+    <nav class="w-full rounded-2xl border border-slate-200 bg-white/80 backdrop-blur-xl md:mx-12 shadow-sm px-5 md:px-8 py-3 flex justify-between items-center">
+      <a class="flex items-center font-black text-xl tracking-tight text-slate-900" href="https://viralio.ro">
+        <div class="w-8 h-8 rounded-xl bg-gradient-viralio flex items-center justify-center text-white mr-2.5 shadow-md"><i class="fa-solid fa-bolt text-sm"></i></div>
+        Viralio <span class="text-sm font-medium text-slate-400 ml-2 border-l border-slate-200 pl-2 mt-0.5">Auto Pipeline</span>
+      </a>
+      <div class="flex items-center gap-2">
+        <button onclick="openLoginModal()" id="login-top-btn" class="px-4 py-2 bg-slate-900 text-white rounded-xl hover:bg-viralio-600 transition-all font-bold shadow-md text-sm">Conectează-te</button>
+        <div id="user-profile" class="hidden items-center bg-slate-50 border border-slate-200 py-1 pl-1.5 pr-1.5 rounded-full">
+          <img id="nav-avatar" src="" class="w-8 h-8 rounded-full border border-slate-200">
+          <div class="flex flex-col leading-none ml-2 mr-1">
+            <span id="nav-name" class="text-xs font-bold text-slate-900 mb-0.5"></span>
+            <span class="text-[0.62rem] font-bold text-viralio-600 flex items-center gap-1.5">
+              <span id="nav-credits">0</span> credite · <span id="nav-chars">0</span> chars
+            </span>
+          </div>
+          <button onclick="logout()" class="p-2 text-slate-400 hover:text-red-500 transition-colors rounded-full hover:bg-red-50 ml-1"><i class="fa-solid fa-power-off text-xs"></i></button>
+        </div>
+      </div>
+    </nav>
+  </div>
+
+  <!-- LOGIN MODAL -->
+  <div id="login-modal">
+    <div class="modal-content">
+      <button class="absolute top-4 right-5 text-slate-400 hover:text-slate-900" onclick="closeLoginModal()"><i class="fa-solid fa-xmark text-xl"></i></button>
+      <div class="w-14 h-14 rounded-2xl bg-indigo-50 text-viralio-600 flex items-center justify-center text-3xl mx-auto mb-4"><i class="fas fa-fingerprint"></i></div>
+      <h2 class="text-2xl font-extrabold mb-2 text-slate-900">Intră în cont</h2>
+      <p class="text-slate-500 text-sm mb-6">Conectează-te cu Google pentru a folosi pipeline-ul.</p>
+      <div class="flex justify-center bg-slate-50 py-3 rounded-2xl border border-slate-100">
+        <div id="g_id_onload" data-client_id="743541351685-br4h5r61n3ai28bbhm9blt34944rju8p.apps.googleusercontent.com" data-context="signin" data-ux_mode="popup" data-callback="handleCredentialResponse" data-auto_prompt="false"></div>
+        <div class="g_id_signin" data-type="standard" data-shape="rectangular" data-theme="outline" data-text="signin_with" data-size="large"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HERO -->
+  <div class="max-w-3xl mx-auto px-4 mt-10 text-center relative z-10">
+    <div class="w-16 h-16 rounded-[1.25rem] bg-indigo-50 border border-indigo-100 text-viralio-600 flex items-center justify-center text-3xl mx-auto mb-5 shadow-sm">
+      <i class="fas fa-wand-magic-sparkles"></i>
+    </div>
+    <h1 class="text-3xl md:text-4xl font-extrabold mb-3 tracking-tight text-slate-900">Auto Content Pipeline</h1>
+    <p class="text-slate-500 text-base font-medium mb-2">Descarcă video 1080p · Transcriere automată · Voice-over AI · Smart Cut</p>
+    <div class="flex flex-wrap items-center justify-center gap-2 mt-3 mb-8">
+      <span class="inline-flex items-center gap-1 text-[0.65rem] font-bold px-2.5 py-1 rounded-full bg-amber-50 border border-amber-100 text-amber-700"><i class="fas fa-coins text-amber-400"></i> 2 Credite / video</span>
+      <span class="inline-flex items-center gap-1 text-[0.65rem] font-bold px-2.5 py-1 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700"><i class="fas fa-film"></i> 1080p max</span>
+      <span class="inline-flex items-center gap-1 text-[0.65rem] font-bold px-2.5 py-1 rounded-full bg-pink-50 border border-pink-100 text-pink-700"><i class="fas fa-microphone-lines"></i> Voice AI inclus</span>
+      <span class="inline-flex items-center gap-1 text-[0.65rem] font-bold px-2.5 py-1 rounded-full bg-green-50 border border-green-100 text-green-700"><i class="fas fa-scissors"></i> Smart Cut inclus</span>
+    </div>
+  </div>
+
+  <!-- MAIN CARD -->
+  <div class="max-w-3xl mx-auto px-4 relative z-10 space-y-4">
+
+    <!-- RIBBON STATUS -->
+    <div id="ribbon" class="hidden ribbon text-sm font-semibold flex items-center gap-3">
+      <div class="w-5 h-5 flex items-center justify-center"><i id="ribbon-icon" class="fas fa-circle-notch spin"></i></div>
+      <div class="flex-1 min-w-0">
+        <div id="ribbon-title" class="font-bold leading-tight"></div>
+        <div id="ribbon-sub" class="text-xs opacity-80 mt-0.5"></div>
+      </div>
+      <div id="ribbon-progress" class="text-xs font-black opacity-70 shrink-0"></div>
+    </div>
+
+    <!-- ── CARD INPUT ── -->
+    <div class="bg-white border border-slate-200 rounded-[1.25rem] shadow-sm overflow-hidden">
+      <div class="flex items-center gap-3 px-5 py-4 border-b border-slate-100 bg-slate-50">
+        <div class="w-8 h-8 rounded-xl bg-gradient-viralio flex items-center justify-center text-white text-sm shrink-0"><i class="fab fa-youtube"></i></div>
+        <div>
+          <div class="font-bold text-slate-800 text-sm">Link YouTube</div>
+          <div class="text-[0.65rem] text-slate-400 font-medium">Paste link · procesare 1080p automată</div>
+        </div>
+      </div>
+      <div class="p-5 space-y-4">
+        <!-- URL INPUT -->
+        <div>
+          <div class="relative">
+            <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300 text-sm"><i class="fas fa-link"></i></span>
+            <input id="yt-url" type="text" placeholder="https://youtube.com/watch?v=..." class="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-3 text-sm font-medium text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all placeholder-slate-300">
+          </div>
+        </div>
+
+        <!-- CONTROLS ROW -->
+        <div class="flex flex-col sm:flex-row gap-3">
+          <div class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 flex items-center gap-3">
+            <label class="text-slate-500 font-semibold text-xs whitespace-nowrap"><i class="fas fa-cog text-slate-300 mr-1"></i>Calitate</label>
+            <select id="dl-quality" class="flex-1 bg-transparent text-slate-800 font-bold text-sm outline-none cursor-pointer">
+              <option value="1080" selected>1080p HD</option>
+              <option value="720">720p</option>
+              <option value="480">480p</option>
+            </select>
+          </div>
+          <div class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 flex items-center gap-3">
+            <label class="text-slate-500 font-semibold text-xs whitespace-nowrap"><i class="fas fa-language text-slate-300 mr-1"></i>Limbă</label>
+            <select id="dl-limba" class="flex-1 bg-transparent text-slate-800 font-bold text-sm outline-none cursor-pointer">
+              <option value="română" selected>🇷🇴 Română</option>
+              <option value="engleză">🇬🇧 Engleză</option>
+              <option value="germană">🇩🇪 Germană</option>
+              <option value="franceză">🇫🇷 Franceză</option>
+              <option value="spaniolă">🇪🇸 Spaniolă</option>
+              <option value="italiană">🇮🇹 Italiană</option>
+              <option value="portugheză">🇵🇹 Portugheză</option>
+              <option value="olandeză">🇳🇱 Olandeză</option>
+              <option value="poloneză">🇵🇱 Poloneză</option>
+              <option value="rusă">🇷🇺 Rusă</option>
+              <option value="japoneză">🇯🇵 Japoneză</option>
+              <option value="chineză">🇨🇳 Chineză</option>
+              <option value="arabă">🇸🇦 Arabă</option>
+              <option value="turcă">🇹🇷 Turcă</option>
+              <option value="coreeană">🇰🇷 Coreeană</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- SKIP TOGGLES -->
+        <div class="flex flex-wrap gap-2">
+          <label class="flex items-center gap-2 cursor-pointer bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 hover:border-indigo-300 transition-colors">
+            <input type="checkbox" id="skip-voice" class="w-4 h-4 accent-indigo-600">
+            <span class="text-xs font-semibold text-slate-600">Sari Voice</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 hover:border-indigo-300 transition-colors">
+            <input type="checkbox" id="skip-cut" class="w-4 h-4 accent-indigo-600">
+            <span class="text-xs font-semibold text-slate-600">Sari Smart Cut</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 hover:border-indigo-300 transition-colors">
+            <input type="checkbox" id="manual-text-toggle" class="w-4 h-4 accent-indigo-600" onchange="toggleManualText()">
+            <span class="text-xs font-semibold text-slate-600">Text manual</span>
+          </label>
+        </div>
+
+        <!-- TEXT MANUAL -->
+        <div id="manual-text-box" class="hidden">
+          <textarea id="manual-text" rows="4" placeholder="Scrie textul pentru voice-over (dacă nu vrei transcriere automată)..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all placeholder-slate-300 resize-none font-medium"></textarea>
+        </div>
+
+        <!-- RUN BUTTON -->
+        <button id="run-btn" onclick="runPipeline()" class="w-full bg-gradient-viralio hover:opacity-90 text-white px-6 py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-md text-sm">
+          <i class="fas fa-wand-magic-sparkles"></i> PORNEȘTE PIPELINE · <span class="bg-white/20 rounded-md px-1.5 py-0.5 text-xs font-black">2 credite</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ── STEP 1: DOWNLOAD ── -->
+    <div id="step-1" class="step-card bg-white border border-slate-200 rounded-[1.25rem] shadow-sm overflow-hidden">
+      <div class="flex items-center gap-3 px-5 py-3.5 border-b border-slate-100">
+        <div id="step-1-icon" class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 text-xs font-black shrink-0">1</div>
+        <div class="flex-1 min-w-0">
+          <div class="font-bold text-slate-800 text-sm">Download Video 1080p</div>
+          <div id="step-1-status" class="text-[0.65rem] text-slate-400 font-medium mt-0.5">În așteptare</div>
+        </div>
+        <div id="step-1-badge" class="text-[0.6rem] font-bold uppercase tracking-wide px-2 py-1 rounded-md bg-slate-100 text-slate-400 shrink-0">wait</div>
+      </div>
+      <div id="step-1-body" class="hidden px-5 py-4"></div>
+    </div>
+
+    <!-- ── STEP 2: VOICE ── -->
+    <div id="step-2" class="step-card bg-white border border-slate-200 rounded-[1.25rem] shadow-sm overflow-hidden">
+      <div class="flex items-center gap-3 px-5 py-3.5 border-b border-slate-100">
+        <div id="step-2-icon" class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 text-xs font-black shrink-0">2</div>
+        <div class="flex-1 min-w-0">
+          <div class="font-bold text-slate-800 text-sm">Voice Studio AI</div>
+          <div id="step-2-status" class="text-[0.65rem] text-slate-400 font-medium mt-0.5">În așteptare</div>
+        </div>
+        <div id="step-2-badge" class="text-[0.6rem] font-bold uppercase tracking-wide px-2 py-1 rounded-md bg-slate-100 text-slate-400 shrink-0">wait</div>
+      </div>
+
+      <!-- VOICE CONFIG (always visible below header) -->
+      <div class="px-5 py-4 bg-slate-50 border-b border-slate-100">
+        <div id="voice-grid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 mb-3"></div>
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <div class="flex justify-between mb-1"><label class="text-[0.6rem] font-bold text-slate-400 uppercase tracking-wide">Stabilitate</label><span id="val-stability" class="text-[0.65rem] font-bold text-indigo-600">0.50</span></div>
+            <input type="range" id="sl-stability" min="0" max="1" step="0.05" value="0.5" oninput="document.getElementById('val-stability').textContent=parseFloat(this.value).toFixed(2)">
+          </div>
+          <div>
+            <div class="flex justify-between mb-1"><label class="text-[0.6rem] font-bold text-slate-400 uppercase tracking-wide">Similaritate</label><span id="val-similarity" class="text-[0.65rem] font-bold text-indigo-600">0.75</span></div>
+            <input type="range" id="sl-similarity" min="0" max="1" step="0.05" value="0.75" oninput="document.getElementById('val-similarity').textContent=parseFloat(this.value).toFixed(2)">
+          </div>
+          <div>
+            <div class="flex justify-between mb-1"><label class="text-[0.6rem] font-bold text-slate-400 uppercase tracking-wide">Viteză</label><span id="val-speed" class="text-[0.65rem] font-bold text-indigo-600">1.00</span></div>
+            <input type="range" id="sl-speed" min="0.5" max="2" step="0.05" value="1.0" oninput="document.getElementById('val-speed').textContent=parseFloat(this.value).toFixed(2)">
+          </div>
+        </div>
+      </div>
+
+      <div id="step-2-body" class="hidden px-5 py-4"></div>
+    </div>
+
+    <!-- ── STEP 3: SMART CUT ── -->
+    <div id="step-3" class="step-card bg-white border border-slate-200 rounded-[1.25rem] shadow-sm overflow-hidden">
+      <div class="flex items-center gap-3 px-5 py-3.5 border-b border-slate-100">
+        <div id="step-3-icon" class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 text-xs font-black shrink-0">3</div>
+        <div class="flex-1 min-w-0">
+          <div class="font-bold text-slate-800 text-sm">Smart Cut <span class="text-slate-400 font-medium">— elimină pauzele</span></div>
+          <div id="step-3-status" class="text-[0.65rem] text-slate-400 font-medium mt-0.5">În așteptare</div>
+        </div>
+        <div id="step-3-badge" class="text-[0.6rem] font-bold uppercase tracking-wide px-2 py-1 rounded-md bg-slate-100 text-slate-400 shrink-0">wait</div>
+      </div>
+
+      <!-- SMART CUT CONFIG -->
+      <div class="px-5 py-4 bg-slate-50 border-b border-slate-100 grid grid-cols-2 gap-3">
+        <div>
+          <div class="flex justify-between mb-1"><label class="text-[0.6rem] font-bold text-slate-400 uppercase tracking-wide">Min. pauză</label><span id="val-silence" class="text-[0.65rem] font-bold text-indigo-600">0.35s</span></div>
+          <input type="range" id="sl-silence" min="0.1" max="2" step="0.05" value="0.35" oninput="document.getElementById('val-silence').textContent=parseFloat(this.value).toFixed(2)+'s'">
+        </div>
+        <div>
+          <div class="flex justify-between mb-1"><label class="text-[0.6rem] font-bold text-slate-400 uppercase tracking-wide">Threshold</label><span id="val-thresh" class="text-[0.65rem] font-bold text-indigo-600">-45dB</span></div>
+          <input type="range" id="sl-thresh" min="-60" max="-20" step="1" value="-45" oninput="document.getElementById('val-thresh').textContent=this.value+'dB'">
+        </div>
+      </div>
+
+      <div id="step-3-body" class="hidden px-5 py-4"></div>
+    </div>
+
+    <!-- ── FINAL RESULT ── -->
+    <div id="final-result" class="hidden bg-white border border-green-200 rounded-[1.25rem] shadow-sm overflow-hidden">
+      <div class="bg-green-50 px-5 py-4 flex items-center gap-3 border-b border-green-100">
+        <div class="w-9 h-9 rounded-xl bg-green-100 flex items-center justify-center text-green-600 text-lg shrink-0"><i class="fas fa-check-circle"></i></div>
+        <div>
+          <div class="font-extrabold text-green-800 text-sm">Pipeline Finalizat!</div>
+          <div class="text-xs text-green-600 mt-0.5">Toate fișierele sunt gata pentru download</div>
+        </div>
+      </div>
+      <div id="final-body" class="p-5 grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+    </div>
+
+  </div><!-- end max-w-3xl -->
+
+  <!-- DISCORD/TELEGRAM BAR -->
+  <div class="fixed bottom-5 right-5 md:right-6 z-[100000] flex items-center bg-white/70 backdrop-blur-2xl rounded-full p-1.5 border border-slate-200 shadow-lg transition-all hover:-translate-y-1 hover:shadow-xl hover:bg-white/90">
+    <a href="https://discord.gg/h8Ah6VKDzm" target="_blank" class="group flex items-center gap-2 hover:bg-slate-100 rounded-full px-3 py-1.5 transition-all">
+      <div class="flex items-center justify-center w-9 h-9 rounded-full bg-slate-900 text-white shadow-sm group-hover:bg-[#5865F2] group-hover:scale-105 transition-all">
+        <i class="fa-brands fa-discord text-sm"></i>
+      </div>
+      <div class="flex-col hidden sm:flex text-left">
+        <span class="text-[0.5rem] font-bold text-slate-400 uppercase tracking-widest leading-none mb-0.5">Ai Întrebări?</span>
+        <span class="text-xs font-black text-slate-800 leading-none group-hover:text-black">Suport Discord</span>
+      </div>
+    </a>
+    <div class="w-px h-6 bg-gradient-to-b from-transparent via-slate-300 to-transparent mx-1"></div>
+    <a href="https://t.me/SmartCreator_official" target="_blank" class="group flex items-center gap-2 rounded-full px-3 py-1.5 transition-all">
+      <div class="relative flex items-center justify-center w-9 h-9 group-hover:scale-110 transition-transform">
+        <div class="absolute inset-0 rounded-full bg-gradient-to-br from-[#0088cc] to-[#00aaff] overflow-hidden shadow-[0_0_15px_rgba(0,136,204,.4)]">
+          <div class="absolute inset-0 w-[250%] h-full bg-gradient-to-r from-transparent via-white/60 to-transparent animate-shine-fast z-10"></div>
+        </div>
+        <i class="fa-brands fa-telegram text-white text-sm pr-0.5 relative z-20"></i>
+        <span class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white animate-pulse z-30"></span>
+      </div>
+      <div class="flex-col hidden sm:flex text-left">
+        <span class="text-[0.5rem] font-bold text-red-500 uppercase tracking-widest leading-none mb-0.5">Giveaways</span>
+        <span class="text-xs font-black text-slate-800 leading-none group-hover:text-[#0088cc]">Telegram VIP</span>
+      </div>
+    </a>
+  </div>
+
+</div><!-- end main white card -->
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════════════════════════
+const API_BASE = window.location.origin;
+const GOOGLE_CLIENT_ID = '743541351685-br4h5r61n3ai28bbhm9blt34944rju8p.apps.googleusercontent.com';
+
+// ── AUTH ─────────────────────────────────────────────────────
+let authToken = null;
+
+function setToken(t) { document.cookie = `viralio_token=${t}; domain=.viralio.ro; path=/; max-age=2592000; Secure; SameSite=Lax`; }
+function getToken() { const m = document.cookie.match(/(?:^|; )viralio_token=([^;]*)/); return m ? m[1] : null; }
+function removeToken() { document.cookie = 'viralio_token=; domain=.viralio.ro; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'; }
+
+function openLoginModal() { document.getElementById('login-modal').classList.add('show'); }
+function closeLoginModal() { document.getElementById('login-modal').classList.remove('show'); }
+function requireAuth() { if (!authToken) { openLoginModal(); return false; } return true; }
+
+async function handleCredentialResponse(response) {
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/google`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ credential: response.credential }) });
+    const data = await res.json();
+    if (data.token) { setToken(data.token); authToken = data.token; closeLoginModal(); updateUI(data.user); }
+    else if (data.error === 'BETA_FULL') alert(data.message);
+  } catch(e) { alert('Eroare conexiune login.'); }
+}
+
+function updateUI(user) {
+  authToken = getToken();
+  document.getElementById('login-top-btn').classList.add('hidden');
+  const up = document.getElementById('user-profile');
+  up.classList.remove('hidden'); up.classList.add('flex');
+  document.getElementById('nav-name').textContent = (user.name||'').split(' ')[0];
+  document.getElementById('nav-avatar').src = user.picture||'';
+  document.getElementById('nav-credits').textContent = Math.floor(user.credits||0);
+  document.getElementById('nav-chars').textContent = (user.voice_characters||0).toLocaleString();
+}
+
+function logout() { removeToken(); authToken = null; location.reload(); }
+
+window.addEventListener('load', async () => {
+  const token = getToken();
+  if (token) {
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/me`, { headers:{'Authorization':`Bearer ${token}`} });
+      if (res.ok) { const data = await res.json(); authToken = token; updateUI(data.user); }
+      else if (res.status === 401) removeToken();
+    } catch(e) {}
+  }
+  buildVoiceGrid();
+});
+
+// ── UI HELPERS ────────────────────────────────────────────────
+function setStep(n, state, msg) {
+  const card = document.getElementById(`step-${n}`);
+  const icon = document.getElementById(`step-${n}-icon`);
+  const status = document.getElementById(`step-${n}-status`);
+  const badge = document.getElementById(`step-${n}-badge`);
+
+  card.className = 'step-card bg-white border rounded-[1.25rem] shadow-sm overflow-hidden';
+  if (state === 'active')  { card.classList.add('border-indigo-300','active'); icon.className='w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600 text-xs shrink-0'; icon.innerHTML='<i class="fas fa-circle-notch spin"></i>'; badge.className='text-[0.6rem] font-bold uppercase tracking-wide px-2 py-1 rounded-md bg-amber-100 text-amber-600 shrink-0'; badge.textContent='running'; }
+  else if (state === 'done')   { card.classList.add('border-green-200','done'); icon.className='w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center text-green-600 text-xs shrink-0'; icon.innerHTML='<i class="fas fa-check"></i>'; badge.className='text-[0.6rem] font-bold uppercase tracking-wide px-2 py-1 rounded-md bg-green-100 text-green-700 shrink-0'; badge.textContent='done'; }
+  else if (state === 'error')  { card.classList.add('border-red-200','error'); icon.className='w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center text-red-500 text-xs shrink-0'; icon.innerHTML='<i class="fas fa-xmark"></i>'; badge.className='text-[0.6rem] font-bold uppercase tracking-wide px-2 py-1 rounded-md bg-red-100 text-red-500 shrink-0'; badge.textContent='error'; }
+  else if (state === 'skip')   { card.classList.add('border-slate-200'); icon.className='w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 text-xs shrink-0'; icon.innerHTML='<i class="fas fa-forward"></i>'; badge.className='text-[0.6rem] font-bold uppercase tracking-wide px-2 py-1 rounded-md bg-slate-100 text-slate-400 shrink-0'; badge.textContent='skip'; }
+  else { card.classList.add('border-slate-200'); }
+
+  if (msg) status.textContent = msg;
+}
+
+function setStepBody(n, html) {
+  const body = document.getElementById(`step-${n}-body`);
+  body.innerHTML = html;
+  body.classList.remove('hidden');
+}
+
+function setRibbon(title, sub, done, total) {
+  const ribbon = document.getElementById('ribbon');
+  ribbon.classList.remove('hidden');
+  document.getElementById('ribbon-title').textContent = title;
+  document.getElementById('ribbon-sub').textContent = sub;
+  document.getElementById('ribbon-progress').textContent = `${done}/${total}`;
+}
+
+function hideRibbon() { document.getElementById('ribbon').classList.add('hidden'); }
+
+function resetSteps() {
+  for (let i = 1; i <= 3; i++) {
+    setStep(i, 'wait', 'În așteptare');
+    document.getElementById(`step-${i}-body`).classList.add('hidden');
+    document.getElementById(`step-${i}-body`).innerHTML = '';
+  }
+  document.getElementById('final-result').classList.add('hidden');
+  document.getElementById('final-body').innerHTML = '';
+  hideRibbon();
+}
+
+function toggleManualText() {
+  const show = document.getElementById('manual-text-toggle').checked;
+  document.getElementById('manual-text-box').classList.toggle('hidden', !show);
+}
+
+// ── VOICE GRID ────────────────────────────────────────────────
+const VOICES = [
+  { id:'nPczCjzI2devNBz1zQrb', name:'Rachel',    lang:'EN 🇺🇸', emoji:'👩' },
+  { id:'TX3LPaxmHKxFdv7VOQHJ', name:'Liam',      lang:'EN 🇺🇸', emoji:'👨' },
+  { id:'pFZP5JQG7iQjIQuC4Bku', name:'Lily',      lang:'EN 🇬🇧', emoji:'👧' },
+  { id:'XB0fDUnXU5powFXDhCwa', name:'Charlotte', lang:'EN 🇬🇧', emoji:'👩‍🦰' },
+  { id:'IKne3meq5aSn9XLyUdCD', name:'Charlie',   lang:'EN 🇦🇺', emoji:'🧑' },
+  { id:'pqHfZKP75CvOlQylNhV4', name:'Bill',      lang:'EN 🇺🇸', emoji:'👴' },
+  { id:'onwK4e9ZLuTAKqWW03F9', name:'Daniel',    lang:'EN 🇬🇧', emoji:'🎙' },
+  { id:'cgSgspJ2msm6clMCkdW9', name:'Jessica',   lang:'EN 🇺🇸', emoji:'💁' },
+  { id:'FGY2WhTYpPnrIDTdsKH5', name:'Laura',     lang:'EN 🇺🇸', emoji:'🌸' },
+  { id:'JBFqnCBsd6RMkjVDRZzb', name:'George',    lang:'EN 🇬🇧', emoji:'🎩' },
+];
+
+let selectedVoice = VOICES[0];
+
+function buildVoiceGrid() {
+  const grid = document.getElementById('voice-grid');
+  grid.innerHTML = '';
+  VOICES.forEach(v => {
+    const el = document.createElement('div');
+    el.className = 'vcard' + (v.id === selectedVoice.id ? ' selected' : '');
+    el.innerHTML = `<div class="text-lg leading-none">${v.emoji}</div><div class="text-[0.65rem] font-bold text-slate-800 truncate">${v.name}</div><div class="text-[0.55rem] text-slate-400 truncate">${v.lang}</div>`;
+    el.onclick = () => { selectedVoice = v; buildVoiceGrid(); };
+    grid.appendChild(el);
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+// PIPELINE
+// ══════════════════════════════════════════════════════════════
+let pipelineResults = {};
+
+async function runPipeline() {
+  if (!requireAuth()) return;
+
+  const url = document.getElementById('yt-url').value.trim();
+  if (!url) { alert('Lipește un link YouTube mai întâi!'); return; }
+  if (!/youtu/.test(url)) { alert('Link YouTube invalid!'); return; }
+
+  const quality   = document.getElementById('dl-quality').value;
+  const limba     = document.getElementById('dl-limba').value;
+  const skipVoice = document.getElementById('skip-voice').checked;
+  const skipCut   = document.getElementById('skip-cut').checked;
+  const manualText= document.getElementById('manual-text-toggle').checked ? document.getElementById('manual-text').value.trim() : null;
+
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-circle-notch spin"></i> Se procesează...';
+
+  resetSteps();
+  pipelineResults = {};
+
+  const totalSteps = (skipVoice ? 0 : 1) + (skipCut ? 0 : 1) + 1;
+
+  // ── STEP 1: DOWNLOAD + TRANSCRIERE ───────────────────────
+  setStep(1, 'active', 'Se descarcă și transcrie videoclipul...');
+  setRibbon('Download + Transcriere...', `Step 1 · ${quality}p · nu închide pagina`, 0, totalSteps);
+  setStepBody(1, `<div class="status-info flex items-center gap-2 pulse text-sm"><i class="fas fa-circle-notch spin"></i> Se descarcă video ${quality}p și se extrage transcrierea în paralel...</div>`);
+
+  try {
+    const res = await fetch(`${API_BASE}/api/process-yt`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${authToken}`},
+      body: JSON.stringify({ url, quality, limba })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Eroare server');
+
+    pipelineResults.videoUrl = data.downloadUrl;
+    pipelineResults.transcript = data.translatedText || data.originalText || null;
+
+    // Update credite nav
+    if (data.creditsLeft !== undefined) document.getElementById('nav-credits').textContent = Math.floor(data.creditsLeft);
+    if (data.voice_characters !== undefined) document.getElementById('nav-chars').textContent = (data.voice_characters||0).toLocaleString();
+
+    const dlHtml = `
+      <div class="flex flex-col gap-3">
+        <a href="${data.downloadUrl}" class="w-full flex items-center justify-center gap-2 bg-slate-900 hover:bg-viralio-600 text-white px-5 py-2.5 rounded-xl font-bold shadow-md transition-all text-sm" download>
+          <i class="fas fa-download text-indigo-400"></i> Descarcă Video MP4 ${quality}p
+        </a>
+        ${data.translatedText ? `
+        <div class="grid grid-cols-2 gap-2">
+          <button onclick="toggleTranscript('orig')" class="bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold py-2 rounded-lg text-xs transition-colors"><i class="fas fa-closed-captioning text-slate-400 mr-1"></i>Original</button>
+          <button onclick="toggleTranscript('trans')" class="bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 text-indigo-700 font-semibold py-2 rounded-lg text-xs transition-colors"><i class="fas fa-language mr-1"></i>Traducere (${limba})</button>
+        </div>
+        <div id="transcript-orig" class="hidden bg-slate-50 rounded-xl p-4 border border-slate-200 relative">
+          <button onclick="copyText('transcript-orig-text', this)" class="absolute top-2 right-2 text-xs bg-white border border-slate-200 text-slate-600 px-2 py-1 rounded-lg hover:bg-slate-100 font-bold"><i class="fas fa-copy"></i></button>
+          <p class="text-[0.65rem] font-bold text-slate-400 uppercase mb-2">Transcript Original</p>
+          <p id="transcript-orig-text" class="text-sm text-slate-700 max-h-52 overflow-y-auto whitespace-pre-wrap leading-relaxed pr-2">${escHtml(data.originalText||'')}</p>
+        </div>
+        <div id="transcript-trans" class="hidden bg-indigo-50 rounded-xl p-4 border border-indigo-100 relative">
+          <button onclick="copyText('transcript-trans-text', this)" class="absolute top-2 right-2 text-xs bg-white border border-indigo-200 text-indigo-600 px-2 py-1 rounded-lg hover:bg-indigo-100 font-bold"><i class="fas fa-copy"></i></button>
+          <p class="text-[0.65rem] font-bold text-indigo-400 uppercase mb-2">Traducere · ${limba}</p>
+          <p id="transcript-trans-text" class="text-sm text-slate-800 font-medium max-h-52 overflow-y-auto whitespace-pre-wrap leading-relaxed pr-2">${escHtml(data.translatedText||'')}</p>
+        </div>` : ''}
+      </div>`;
+    setStepBody(1, dlHtml);
+    setStep(1, 'done', `Video ${quality}p descărcat ✓`);
+    setRibbon('Download complet!', 'Continuăm cu voice-over...', 1, totalSteps);
+
+  } catch(e) {
+    setStep(1, 'error', e.message);
+    setStepBody(1, `<div class="status-error text-sm flex items-start gap-2"><i class="fas fa-circle-xmark mt-0.5 shrink-0"></i><div>${e.message}</div></div>`);
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> PORNEȘTE PIPELINE · <span class="bg-slate-200 rounded-md px-1.5 py-0.5 text-xs font-black text-slate-600">2 credite</span>';
+    return;
+  }
+
+  // ── STEP 2: VOICE ─────────────────────────────────────────
+  if (!skipVoice) {
+    let textToSpeak = manualText || pipelineResults.transcript;
+
+    if (!textToSpeak) {
+      setStep(2, 'error', 'Nicio sursă de text');
+      setStepBody(2, `<div class="status-error text-sm">Nu există transcript pentru voice-over. Activează "Text manual" și scrie textul.</div>`);
+    } else {
+      setStep(2, 'active', `Generare cu ${selectedVoice.name}...`);
+      setRibbon(`Voice-over cu ${selectedVoice.name}...`, `Step 2 · ${textToSpeak.length} chars · poate dura 30-60s`, 1, totalSteps);
+      setStepBody(2, `<div class="status-info flex items-center gap-2 pulse text-sm"><i class="fas fa-circle-notch spin"></i> Se generează voice-over cu ${selectedVoice.name} (${textToSpeak.length} caractere)...</div>`);
+
+      // Traducere suplimentară dacă e nevoie
+      if (!manualText && pipelineResults.transcript) {
+        try {
+          const tRes = await fetch(`${API_BASE}/api/translate`, { method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${authToken}`}, body: JSON.stringify({ text: textToSpeak, limba }) });
+          const tData = await tRes.json();
+          if (tRes.ok && tData.translated) textToSpeak = tData.translated;
+        } catch(e) {}
+      }
+
+      try {
+        const vRes = await fetch(`${API_BASE}/api/generate`, {
+          method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${authToken}`},
+          body: JSON.stringify({ text: textToSpeak, voiceId: selectedVoice.id, voice: selectedVoice.name, stability: parseFloat(document.getElementById('sl-stability').value), similarity_boost: parseFloat(document.getElementById('sl-similarity').value), speed: parseFloat(document.getElementById('sl-speed').value) })
+        });
+        const vData = await vRes.json();
+        if (!vRes.ok) throw new Error(vData.error || 'Eroare voice');
+
+        pipelineResults.voiceUrl = vData.audioUrl;
+        if (vData.remaining_chars !== undefined) document.getElementById('nav-chars').textContent = (vData.remaining_chars||0).toLocaleString();
+
+        setStepBody(2, `<div class="flex flex-col gap-3">
+          <audio controls src="${vData.audioUrl}" class="w-full rounded-xl" style="filter:none"></audio>
+          <a href="${vData.audioUrl}" class="flex items-center justify-center gap-2 bg-slate-50 border border-slate-200 hover:border-indigo-300 text-slate-700 font-bold py-2 rounded-xl text-sm transition-colors" download><i class="fas fa-download text-indigo-400"></i> Descarcă MP3</a>
+        </div>`);
+        setStep(2, 'done', `Voice generat cu ${selectedVoice.name} ✓`);
+        setRibbon('Voice gata!', 'Rulăm Smart Cut...', 2, totalSteps);
+
+      } catch(e) {
+        setStep(2, 'error', e.message);
+        setStepBody(2, `<div class="status-error text-sm">${e.message}</div>`);
+      }
+    }
+  } else {
+    setStep(2, 'skip', 'Sărit la cerere');
+  }
+
+  // ── STEP 3: SMART CUT ─────────────────────────────────────
+  const audioForCut = pipelineResults.voiceUrl;
+  if (!skipCut && audioForCut) {
+    setStep(3, 'active', 'Se elimină pauzele...');
+    setRibbon('Smart Cut...', 'Step final · elimină pauzele din audio', 2, totalSteps);
+    setStepBody(3, `<div class="status-info flex items-center gap-2 pulse text-sm"><i class="fas fa-circle-notch spin"></i> Smart Cut procesează audio-ul...</div>`);
+
+    try {
+      const audioBlob = await fetch(audioForCut).then(r => r.blob());
+      const audioFile = new File([audioBlob], 'audio.mp3', { type:'audio/mpeg' });
+      const formData = new FormData();
+      formData.append('file', audioFile);
+      formData.append('minSilence', document.getElementById('sl-silence').value);
+      formData.append('threshold', document.getElementById('sl-thresh').value + 'dB');
+
+      const scRes = await fetch(`${API_BASE}/api/smart-cut`, { method:'POST', headers:{'Authorization':`Bearer ${authToken}`}, body: formData });
+      const scData = await scRes.json();
+      if (!scRes.ok) throw new Error(scData.error || 'Eroare smart cut');
+
+      pipelineResults.cutUrl = scData.downloadUrl;
+      if (scData.creditsLeft !== undefined) document.getElementById('nav-credits').textContent = Math.floor(scData.creditsLeft);
+
+      setStepBody(3, `<div class="flex flex-col gap-3">
+        <audio controls src="${scData.downloadUrl}" class="w-full rounded-xl"></audio>
+        <a href="${scData.downloadUrl}" class="flex items-center justify-center gap-2 bg-slate-50 border border-slate-200 hover:border-green-300 text-slate-700 font-bold py-2 rounded-xl text-sm transition-colors" download><i class="fas fa-download text-green-500"></i> Descarcă Audio Final</a>
+      </div>`);
+      setStep(3, 'done', 'Smart Cut finalizat ✓');
+
+    } catch(e) {
+      setStep(3, 'error', e.message);
+      setStepBody(3, `<div class="status-error text-sm">${e.message}</div>`);
+    }
+  } else if (skipCut) {
+    setStep(3, 'skip', 'Sărit la cerere');
+  } else {
+    setStep(3, 'skip', 'Fără audio generat');
+  }
+
+  // ── FINAL ─────────────────────────────────────────────────
+  const finalBody = document.getElementById('final-body');
+  const items = [];
+  if (pipelineResults.videoUrl) items.push(`<a href="${pipelineResults.videoUrl}" class="flex items-center gap-3 bg-slate-900 hover:bg-viralio-600 text-white px-5 py-3 rounded-xl font-bold transition-all text-sm shadow-md" download><i class="fas fa-film text-indigo-300"></i> Video MP4 ${quality}p</a>`);
+  if (pipelineResults.voiceUrl) items.push(`<a href="${pipelineResults.voiceUrl}" class="flex items-center gap-3 bg-indigo-50 border border-indigo-200 hover:border-indigo-400 text-indigo-800 px-5 py-3 rounded-xl font-bold transition-all text-sm" download><i class="fas fa-microphone-lines text-indigo-500"></i> Voice-over MP3</a>`);
+  if (pipelineResults.cutUrl)   items.push(`<a href="${pipelineResults.cutUrl}" class="flex items-center gap-3 bg-green-50 border border-green-200 hover:border-green-400 text-green-800 px-5 py-3 rounded-xl font-bold transition-all text-sm" download><i class="fas fa-scissors text-green-500"></i> Smart Cut MP3</a>`);
+
+  if (items.length > 0) {
+    finalBody.innerHTML = items.join('');
+    document.getElementById('final-result').classList.remove('hidden');
+    document.getElementById('final-result').scrollIntoView({ behavior:'smooth', block:'nearest' });
+  }
+
+  hideRibbon();
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> PORNEȘTE DIN NOU · <span class="bg-white/20 rounded-md px-1.5 py-0.5 text-xs font-black">2 credite</span>';
+}
+
+// ── UTILS ─────────────────────────────────────────────────────
+function toggleTranscript(type) {
+  document.getElementById('transcript-orig').classList.toggle('hidden', type !== 'orig' || !document.getElementById('transcript-orig').classList.contains('hidden'));
+  document.getElementById('transcript-trans').classList.toggle('hidden', type !== 'trans' || !document.getElementById('transcript-trans').classList.contains('hidden'));
+  if (type === 'orig') {
+    const el = document.getElementById('transcript-orig');
+    el.classList.toggle('hidden');
+    document.getElementById('transcript-trans').classList.add('hidden');
+  } else {
+    const el = document.getElementById('transcript-trans');
+    el.classList.toggle('hidden');
+    document.getElementById('transcript-orig').classList.add('hidden');
+  }
+}
+
+function copyText(id, btn) {
+  const text = document.getElementById(id)?.innerText;
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-check text-green-600"></i>';
+    setTimeout(() => btn.innerHTML = orig, 2000);
+  });
+}
+
+function escHtml(s) { const d=document.createElement('div'); d.appendChild(document.createTextNode(s)); return d.innerHTML; }
+
+// Paste URL cu auto-detect
+document.getElementById('yt-url').addEventListener('paste', (e) => {
+  setTimeout(() => {
+    const val = document.getElementById('yt-url').value;
+    if (/youtu/.test(val)) document.getElementById('yt-url').classList.add('border-indigo-300','bg-indigo-50');
+    else document.getElementById('yt-url').classList.remove('border-indigo-300','bg-indigo-50');
+  }, 50);
+});
+</script>
+</body>
+</html>
