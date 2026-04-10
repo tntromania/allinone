@@ -1,460 +1,918 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { execFile, exec } = require('child_process');
-const fs = require('fs');
 const path = require('path');
-const https = require('https');
-const OpenAI = require('openai');
 const mongoose = require('mongoose');
-const multer = require('multer');
-const rateLimit = require('express-rate-limit');
-const helmet = require('helmet');
-
-const { authenticate, hubAPI } = require('./hub-auth');
-
-const REQUIRED_ENV = ['OPENAI_API_KEY', 'HUB_URL', 'INTERNAL_API_KEY', 'AI33_API_KEY', 'PROXY_URL'];
-for (const key of REQUIRED_ENV) {
-    if (!process.env[key]) { console.error(`❌ Variabila de mediu lipsă: ${key}`); process.exit(1); }
-}
+const { OAuth2Client } = require('google-auth-library');
+const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 
 const app = express();
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 const PORT = process.env.PORT || 3000;
-process.on('unhandledRejection', (reason) => { console.error('⚠️ Unhandled Rejection:', reason?.message || reason); });
-app.set('trust proxy', 1);
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const AI33_API_KEY = process.env.AI33_API_KEY;
-const AI33_BASE_URL = 'https://api.ai33.pro';
-const PROXY_URL = process.env.PROXY_URL;
+// ── API KEY pentru comunicare inter-servicii ──
+// Adaugă în .env: INTERNAL_API_KEY=un_string_random_lung_32+_caractere
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
 
-const DOWNLOAD_DIR = path.resolve(__dirname, 'downloads');
-const PROCESSED_DIR = path.resolve(__dirname, 'processed');
-for (const dir of [DOWNLOAD_DIR, PROCESSED_DIR]) {
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-}
+mongoose.connect(process.env.MONGO_URI)
+    .then(() => console.log('✅ Conectat la MongoDB!'))
+    .catch(err => console.error('❌ Eroare MongoDB:', err));
 
-const YTDLP_PATH = '/usr/local/bin/yt-dlp';
-const uploadTmp = multer({ dest: DOWNLOAD_DIR, limits: { fileSize: 500 * 1024 * 1024 } });
-
-app.use(helmet({ contentSecurityPolicy: false, crossOriginOpenerPolicy: false, crossOriginEmbedderPolicy: false }));
-app.use(cors({ origin: '*' }));
-app.use(express.json({ limit: '10kb' }));
-
-// FIX #6: assets si index.html direct langa server.js, nu in /public
-app.use(express.static(__dirname));
-
-app.use('/api/process-yt', rateLimit({ windowMs: 60 * 1000, max: 10, message: { error: 'Maxim 10 cereri pe minut.' } }));
-app.use('/api/auth/google', rateLimit({ windowMs: 15 * 60 * 1000, max: 20, message: { error: 'Prea multe încercări.' } }));
-
-if (process.env.MONGO_URI) {
-    mongoose.connect(process.env.MONGO_URI)
-        .then(() => console.log('✅ Cache MongoDB conectat!'))
-        .catch(err => console.warn('⚠️ MongoDB indisponibil:', err.message));
-}
-const CacheSchema = new mongoose.Schema({
-    videoId: String, originalText: String, translatedText: String,
-    createdAt: { type: Date, expires: 86400, default: Date.now }
+const UserSchema = new mongoose.Schema({
+    googleId:           { type: String, required: true, unique: true },
+    email:              { type: String, required: true },
+    name:               String,
+    picture:            String,
+    credits:            { type: Number, default: 10 },
+    voice_characters:   { type: Number, default: 3000 },
+    stripeCustomerId:   { type: String, default: null },
+    subscriptionId:     { type: String, default: null },
+    subscriptionPlan:   { type: String, enum: ['none','starter','creator','agency'], default: 'none' },
+    subscriptionStatus: { type: String, default: 'inactive' },
+    currentPeriodEnd:   { type: Date, default: null },
+    referralCode:       { type: String, unique: true, sparse: true },
+    referredBy:         { type: String, default: null },
+    referralCount:      { type: Number, default: 0 },
+    referralCreditsEarned: { type: Number, default: 0 },
+    referralTier:       { type: Number, default: 0 },
+    referralBonusesClaimed: [{ type: Number }],  // tier indexes already claimed
+    retentionOfferUsed:    { type: Date, default: null },  // anti-abuse: o singură ofertă de retenție
+    registrationIp:     { type: String, default: null },
+    createdAt:          { type: Date, default: Date.now },
+    earlyAccess:        { type: Boolean, default: false }
 });
-const VideoCache = mongoose.models.VideoCache || mongoose.model('VideoCache', CacheSchema);
+const User = mongoose.models.User || mongoose.model('User', UserSchema);
 
-// ── HELPERS ─────────────────────────────────────────────────
-function ts() { return `[${new Date().toISOString().slice(11, 23)}]`; }
-function elapsed(s) { const ms = Date.now() - s; return ms < 1000 ? `${ms}ms` : `${(ms/1000).toFixed(1)}s`; }
+const WaitlistSchema = new mongoose.Schema({
+    email: String, name: String, date: { type: Date, default: Date.now }
+});
+const Waitlist = mongoose.models.Waitlist || mongoose.model('Waitlist', WaitlistSchema);
 
-function sanitizeYouTubeUrl(rawUrl) {
-    const url = (rawUrl || '').trim();
-    const m = url.match(/(?:v=|youtu\.be\/|shorts\/)([\w-]{11})/);
-    if (m) return { cleanUrl: `https://www.youtube.com/watch?v=${m[1]}`, videoId: m[1] };
-    return null;
-}
-
-function runYtDlp(args, opts = {}) {
-    return new Promise((resolve, reject) => {
-        execFile(YTDLP_PATH, args, { maxBuffer: 1024*1024*200, timeout: opts.timeout || 300000 }, (error, stdout, stderr) => {
-            if (error) {
-                const errMsg = (stderr||'').split('\n').filter(l=>l.startsWith('ERROR:')).join(' ').trim() || error.message.slice(0,300);
-                reject(new Error(errMsg));
-            } else resolve({ stdout: stdout?.trim()||'', stderr: stderr?.trim()||'' });
-        });
-    });
-}
-
-const COOKIES_DIR = process.env.COOKIES_DIR ? path.resolve(process.env.COOKIES_DIR) : path.resolve(__dirname, 'cookies');
-function cookiesFile() { const f = path.join(COOKIES_DIR, 'youtube.txt'); return fs.existsSync(f) ? f : null; }
-
-function baseArgs() {
-    const args = ['--proxy', PROXY_URL, '--no-warnings', '--geo-bypass', '--no-cache-dir', '--retries', '5', '--fragment-retries', '5', '--no-check-certificates', '--no-playlist'];
-    const c = cookiesFile(); if (c) args.push('--cookies', c);
-    return args;
-}
-function baseArgsNoProxy() {
-    const full = baseArgs(); const idx = full.indexOf('--proxy');
-    if (idx !== -1) full.splice(idx, 2); return full;
-}
-
-function curlDownload(url, outputPath, timeoutSec = 300, useProxy = false) {
-    return new Promise((resolve, reject) => {
-        const args = ['-sS', '-L', '--max-time', String(timeoutSec),
-            '-A', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36',
-            '-H', 'Referer: https://www.youtube.com/', '-H', 'Accept: */*', '-H', 'Accept-Encoding: identity'];
-        if (useProxy) args.push('--proxy', PROXY_URL);
-        args.push('-o', outputPath, url);
-        execFile('curl', args, { timeout: (timeoutSec+10)*1000 }, (err) => {
-            if (err) return reject(new Error(err.message.slice(0,200))); resolve();
-        });
-    });
-}
-
-// ── DOWNLOAD VIDEO 1080p ─────────────────────────────────────
-const downloadVideo = async (url, outputPath, quality = '1080') => {
-    const t0 = Date.now();
-    console.log(`${ts()} ▶ downloadVideo (${quality}p)`);
-    if (fs.existsSync(outputPath)) try { fs.unlinkSync(outputPath); } catch(e) {}
-
-    const qualityMap = {
-        '1080': 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/best',
-        '720':  'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best[height<=720]/best',
-        '480':  'bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=480]+bestaudio/best[height<=480]/best',
-    };
-    const fmt = qualityMap[quality] || qualityMap['1080'];
-    const strategies = [{ label: `${quality}p`, format: fmt }, { label: 'best', format: 'bestvideo+bestaudio/best' }];
-    let lastError = null, proxyRequired = false;
-
-    for (const strat of strategies) {
-        if (fs.existsSync(outputPath)) try { fs.unlinkSync(outputPath); } catch(e) {}
-        try {
-            let cdnUrls = null, viaProxy = false;
-            if (!proxyRequired) {
-                try {
-                    const { stdout } = await runYtDlp([...baseArgsNoProxy(), '--get-url', '-f', strat.format, '--no-playlist', url], { timeout: 30000 });
-                    const urls = stdout.split('\n').filter(u => u.startsWith('http'));
-                    if (urls.length > 0) { cdnUrls = urls; viaProxy = false; }
-                } catch(e) { proxyRequired = true; }
-            }
-            if (!cdnUrls) {
-                const { stdout } = await runYtDlp([...baseArgs(), '--get-url', '-f', strat.format, '--no-playlist', url], { timeout: 45000 });
-                const urls = stdout.split('\n').filter(u => u.startsWith('http'));
-                if (urls.length > 0) { cdnUrls = urls; viaProxy = true; }
-            }
-            if (!cdnUrls?.length) throw new Error('Niciun URL CDN returnat');
-
-            if (cdnUrls.length === 1) {
-                await curlDownload(cdnUrls[0], outputPath, 300, viaProxy);
-            } else {
-                const videoTmp = outputPath.replace(/\.mp4$/, '_vtmp.mp4');
-                const audioTmp = outputPath.replace(/\.mp4$/, '_atmp.m4a');
-                try {
-                    await curlDownload(cdnUrls[0], videoTmp, 300, viaProxy);
-                    await curlDownload(cdnUrls[1], audioTmp, 120, viaProxy);
-                    await new Promise((res,rej) => execFile('ffmpeg', ['-i', videoTmp, '-i', audioTmp, '-c', 'copy', '-y', outputPath], { timeout: 120000 }, err => err ? rej(new Error('ffmpeg: '+err.message.slice(0,100))) : res()));
-                } finally {
-                    [videoTmp, audioTmp].forEach(f => { if(fs.existsSync(f)) try{fs.unlinkSync(f);}catch(e){} });
-                }
-            }
-            if (!fs.existsSync(outputPath) || fs.statSync(outputPath).size < 50*1024) throw new Error('Fișier video invalid');
-            console.log(`${ts()} ✅ Video OK: ${(fs.statSync(outputPath).size/1024/1024).toFixed(2)}MB | ${elapsed(t0)}`);
-            return;
-        } catch(err) {
-            lastError = err;
-            if (strat === strategies[strategies.length-1]) {
-                try {
-                    await runYtDlp([...baseArgs(), '-f', fmt, '--merge-output-format', 'mp4', '--concurrent-fragments', '4', '-o', outputPath, url], { timeout: 600000 });
-                    if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 50*1024) return;
-                } catch(fbErr) {}
-            }
-        }
-    }
-    throw new Error(lastError?.message || 'Nu am putut descărca videoul.');
+const PLANS = {
+    [process.env.STRIPE_PRICE_STARTER]:        { plan: 'starter', credits: 150,  chars: 50000  },
+    [process.env.STRIPE_PRICE_CREATOR]:        { plan: 'creator', credits: 400,  chars: 150000 },
+    [process.env.STRIPE_PRICE_AGENCY]:         { plan: 'agency',  credits: 1500, chars: 500000 },
+    [process.env.STRIPE_PRICE_STARTER_YEARLY]: { plan: 'starter', credits: 150,  chars: 50000  },
+    [process.env.STRIPE_PRICE_CREATOR_YEARLY]: { plan: 'creator', credits: 400,  chars: 150000 },
+    [process.env.STRIPE_PRICE_AGENCY_YEARLY]:  { plan: 'agency',  credits: 1500, chars: 500000 },
 };
 
-// ── TRANSCRIERE + TRADUCERE ───────────────────────────────────
-const getTranscriptAndTranslation = async (url, videoId, limba = 'română') => {
-    const t0 = Date.now();
-    let originalText = '';
-    const audioPath = path.join(DOWNLOAD_DIR, `audio_${videoId}.mp3`);
-    try {
-        // Subtitrări native
-        try {
-            await runYtDlp([...baseArgs(), '--write-auto-subs', '--sub-langs', 'ro,en', '--sub-format', 'vtt', '--skip-download', '-o', path.join(DOWNLOAD_DIR, `sub_${videoId}.%(ext)s`), url], { timeout: 30000 });
-            const subFile = ['ro','en'].map(l => path.join(DOWNLOAD_DIR, `sub_${videoId}.${l}.vtt`)).find(f => fs.existsSync(f));
-            if (subFile) {
-                const raw = fs.readFileSync(subFile, 'utf8');
-                const clean = raw.replace(/WEBVTT[\s\S]*?\n\n/,'').replace(/\d{2}:\d{2}:\d{2}\.\d{3} --> [\s\S]*?\n/g,'').replace(/<[^>]+>/g,'').replace(/\n{2,}/g,' ').trim();
-                try { fs.unlinkSync(subFile); } catch(e) {}
-                if (clean.length > 50) { originalText = clean; }
-            }
-        } catch(e) {}
-
-        // Whisper fallback
-        if (!originalText) {
-            try {
-                const { stdout } = await runYtDlp([...baseArgs(), '--get-url', '-f', 'ba/bestaudio/best', '--no-playlist', url], { timeout: 45000 });
-                const audioUrl = stdout.split('\n').find(u => u.startsWith('http'));
-                if (audioUrl) {
-                    const tempRaw = audioPath + '.tmp';
-                    await curlDownload(audioUrl, tempRaw, 120, true);
-                    await new Promise((res,rej) => execFile('ffmpeg', ['-i', tempRaw, '-vn', '-acodec', 'libmp3lame', '-q:a', '0', '-y', audioPath], { timeout: 120000 }, err => err ? rej(err) : res()));
-                    try { fs.unlinkSync(tempRaw); } catch(e) {}
-                }
-            } catch(e) {
-                await runYtDlp([...baseArgs(), '-f', 'ba/bestaudio/best', '--extract-audio', '--audio-format', 'mp3', '--audio-quality', '0', '-o', audioPath, url], { timeout: 300000 }).catch(()=>{});
-            }
-            if (fs.existsSync(audioPath) && fs.statSync(audioPath).size > 1000) {
-                const tr = await openai.audio.transcriptions.create({ file: fs.createReadStream(audioPath), model: 'whisper-1' });
-                originalText = tr.text;
-            }
-        }
-    } catch(err) {
-        console.error(`${ts()} ❌ Transcriere fail: ${err.message}`);
-        return { original: '', translated: '' };
-    } finally {
-        if (fs.existsSync(audioPath)) try { fs.unlinkSync(audioPath); } catch(e) {}
-    }
-
-    if (!originalText) return { original: '', translated: '' };
-
-    try {
-        const completion = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
-            messages: [
-                { role: 'system', content: `Ești un traducător profesionist. Traduce textul primit perfect, natural și cursiv în ${limba}. Dacă e deja în ${limba}, returnează-l exact. Returnează DOAR textul tradus.` },
-                { role: 'user', content: originalText.substring(0, 10000) }
-            ],
-        });
-        return { original: originalText, translated: completion.choices[0].message.content };
-    } catch(e) {
-        return { original: originalText, translated: originalText };
-    }
+const TOPUP = {
+    [process.env.STRIPE_PRICE_TOPUP_50]:  50,
+    [process.env.STRIPE_PRICE_TOPUP_150]: 150,
+    [process.env.STRIPE_PRICE_TOPUP_400]: 400,
 };
-
-// ── AI33 HELPERS ─────────────────────────────────────────────
-function downloadVoiceFile(url, dest) {
-    return new Promise((resolve, reject) => {
-        const file = fs.createWriteStream(dest);
-        https.get(url, (response) => {
-            if (response.statusCode === 301 || response.statusCode === 302) { file.close(); return downloadVoiceFile(response.headers.location, dest).then(resolve).catch(reject); }
-            response.pipe(file);
-            file.on('finish', () => { file.close(); resolve(); });
-        }).on('error', (err) => { fs.unlink(dest, ()=>{}); reject(err); });
-    });
-}
-
-async function pollAI33Task(taskId, maxWait = 60000) {
-    const interval = 3000, maxAttempts = Math.floor(maxWait / interval);
-    for (let i = 0; i < maxAttempts; i++) {
-        await new Promise(r => setTimeout(r, interval));
-        let resp;
-        try { resp = await fetch(`${AI33_BASE_URL}/v1/task/${taskId}`, { headers: { 'xi-api-key': AI33_API_KEY }, signal: AbortSignal.timeout(10000) }); }
-        catch(e) { continue; }
-        if (resp.status === 503 || resp.status === 502) continue;
-        if (!resp.ok) throw new Error(`Polling fail: ${resp.status}`);
-        const task = await resp.json();
-        if (task.status === 'done') {
-            const audioUrl = task.metadata?.audio_url || task.output_uri || task.metadata?.output_uri;
-            if (!audioUrl) throw new Error('Task done fără URL.');
-            return audioUrl;
-        }
-        if (task.status === 'error' || task.status === 'failed') throw new Error(task.error_message || 'Eroare AI33.');
-    }
-    throw new Error('Timeout: 60s depășit.');
-}
 
 // ══════════════════════════════════════════════════════════════
-// ██ ROUTES AUTH
+// ██ REFERRAL TIER SYSTEM — 8 niveluri, bonusuri progresive
+// ══════════════════════════════════════════════════════════════
+const REFERRAL_TIERS = [
+    // tier 0: start — fiecare invitație = 5 credite
+    { minReferrals: 0,   name: 'Începător',      icon: '🌱', perReferral: 5,  bonus: 0,    bonusVoice: 0,      badge: null },
+    // tier 1: 3 invitații — bonus 10 credite
+    { minReferrals: 3,   name: 'Promoter',        icon: '⚡', perReferral: 5,  bonus: 10,   bonusVoice: 2000,   badge: 'Promoter' },
+    // tier 2: 10 invitații — bonus 30 credite + 5k voice
+    { minReferrals: 10,  name: 'Influencer',      icon: '🔥', perReferral: 7,  bonus: 30,   bonusVoice: 5000,   badge: 'Influencer' },
+    // tier 3: 25 invitații — bonus 75 credite + 15k voice
+    { minReferrals: 25,  name: 'Ambassador',      icon: '💎', perReferral: 7,  bonus: 75,   bonusVoice: 15000,  badge: 'Ambassador' },
+    // tier 4: 50 invitații — bonus 150 credite + 30k voice
+    { minReferrals: 50,  name: 'Elite',           icon: '👑', perReferral: 10, bonus: 150,  bonusVoice: 30000,  badge: 'Elite' },
+    // tier 5: 100 invitații — bonus 400 credite + 80k voice
+    { minReferrals: 100, name: 'Legend',           icon: '🏆', perReferral: 10, bonus: 400,  bonusVoice: 80000,  badge: 'Legend' },
+    // tier 6: 250 invitații — bonus 1000 credite + 200k voice
+    { minReferrals: 250, name: 'Titan',            icon: '🚀', perReferral: 12, bonus: 1000, bonusVoice: 200000, badge: 'Titan' },
+    // tier 7: 500 invitații — bonus 2500 credite + 500k voice + badge permanent
+    { minReferrals: 500, name: 'Viralio Partner',  icon: '🌟', perReferral: 15, bonus: 2500, bonusVoice: 500000, badge: 'Partner' },
+];
+
+function getCurrentTier(count) {
+    let tier = 0;
+    for (let i = REFERRAL_TIERS.length - 1; i >= 0; i--) {
+        if (count >= REFERRAL_TIERS[i].minReferrals) { tier = i; break; }
+    }
+    return tier;
+}
+
+function getPerReferralCredits(count) {
+    return REFERRAL_TIERS[getCurrentTier(count)].perReferral;
+}
+
+// Anti-fraud: max referrals per IP in 24h
+const REFERRAL_IP_LIMIT = 3;
+const REFERRAL_IP_WINDOW_MS = 24 * 60 * 60 * 1000; // 24h
+
+console.log('📋 PLANS:', JSON.stringify(PLANS));
+console.log('📋 TOPUP:', JSON.stringify(TOPUP));
+console.log('📋 WEBHOOK_SECRET:', endpointSecret ? endpointSecret.substring(0, 12) + '...' : 'LIPSESTE!');
+
+// ══════════════════════════════════════════════════════════════
+// ██ WEBHOOK STRIPE (trebuie ÎNAINTE de express.json!)
+// ══════════════════════════════════════════════════════════════
+app.post('/api/webhook/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+    const sig = req.headers['stripe-signature'];
+    let event;
+
+    try {
+        event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+    } catch (err) {
+        console.error('❌ WEBHOOK SIGNATURE ERROR:', err.message);
+        return res.status(400).send('Webhook Error: ' + err.message);
+    }
+
+    console.log('📨 WEBHOOK PRIMIT:', event.type);
+
+    try {
+        if (event.type === 'invoice.payment_succeeded') {
+            const invoice = event.data.object;
+            const subId = invoice.subscription
+                || invoice.parent?.subscription_details?.subscription
+                || invoice.lines?.data?.[0]?.subscription;
+
+            console.log('💳 amount_paid=' + invoice.amount_paid + ' | subId=' + subId);
+
+            if (invoice.amount_paid === 0) { console.log('⏭️ Skip: amount=0'); return res.sendStatus(200); }
+            if (!subId) { console.log('⏭️ Skip: nu e subscription'); return res.sendStatus(200); }
+
+            const sub = await stripe.subscriptions.retrieve(subId);
+            const priceId = sub.items.data[0]?.price?.id;
+            const planCfg = PLANS[priceId];
+            if (!planCfg) { console.error('❌ PRICE ID NECUNOSCUT: ' + priceId); return res.sendStatus(200); }
+
+            const customer = await stripe.customers.retrieve(invoice.customer);
+            const email = customer.email;
+
+            const user = await User.findOneAndUpdate(
+                { email },
+                {
+                    credits: planCfg.credits, voice_characters: planCfg.chars,
+                    stripeCustomerId: invoice.customer, subscriptionId: subId,
+                    subscriptionPlan: planCfg.plan, subscriptionStatus: 'active',
+                    currentPeriodEnd: new Date(sub.current_period_end * 1000),
+                },
+                { new: true }
+            );
+            if (user) console.log('✅ SUCCES: ' + email + ' plan=' + planCfg.plan);
+            else console.error('❌ USER NEGASIT pentru: ' + email);
+        }
+
+        else if (event.type === 'checkout.session.completed') {
+            const session = event.data.object;
+            if (session.mode !== 'payment') { return res.sendStatus(200); }
+
+            const topupPriceId = session.metadata?.topup_price_id;
+            const creditsToAdd = topupPriceId ? TOPUP[topupPriceId] : null;
+            if (!creditsToAdd) { console.error('❌ TOPUP metadata lipsa'); return res.sendStatus(200); }
+
+            const email = session.customer_details?.email;
+            if (!email) { console.error('❌ TOPUP email lipsa'); return res.sendStatus(200); }
+
+            const user = await User.findOneAndUpdate(
+                { email }, { $inc: { credits: creditsToAdd } }, { new: true }
+            );
+            if (user) console.log('✅ TOPUP +' + creditsToAdd + ' pentru ' + email + ' total=' + user.credits);
+            else console.error('❌ TOPUP negasit: ' + email);
+        }
+
+        else if (event.type === 'customer.subscription.deleted') {
+            const sub = event.data.object;
+            const customer = await stripe.customers.retrieve(sub.customer);
+            await User.findOneAndUpdate(
+                { email: customer.email },
+                { subscriptionId: null, subscriptionPlan: 'none', subscriptionStatus: 'canceled', currentPeriodEnd: null }
+            );
+            console.log('❌ SUB CANCELED: ' + customer.email);
+        }
+
+        else if (event.type === 'invoice.payment_failed') {
+            const invoice = event.data.object;
+            if (invoice.subscription) {
+                const customer = await stripe.customers.retrieve(invoice.customer);
+                await User.findOneAndUpdate({ email: customer.email }, { subscriptionStatus: 'past_due' });
+                console.warn('⚠️ PAYMENT FAILED: ' + customer.email);
+            }
+        }
+    } catch (err) {
+        console.error('❌ EROARE WEBHOOK:', err.message);
+    }
+
+    res.sendStatus(200);
+});
+
+// ── MIDDLEWARE ───────────────────────────────
+app.use(cors({ origin: '*' }));
+app.use(express.json());
+app.get('/open-in-browser', (req, res) => {
+    res.sendFile(path.join(__dirname, 'tiktok-redirect.html'));
+});
+app.use(express.static(path.join(__dirname, 'public')));
+
+const authenticate = (req, res, next) => {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).json({ error: 'Trebuie să fii logat!' });
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        req.userId = decoded.userId;
+        next();
+    } catch (e) {
+        return res.status(401).json({ error: 'Sesiune expirată.' });
+    }
+};
+
+// Middleware pentru apeluri interne (de la celelalte app-uri)
+const authenticateInternal = (req, res, next) => {
+    const apiKey = req.headers['x-internal-key'];
+    if (!apiKey || apiKey !== INTERNAL_API_KEY) {
+        return res.status(403).json({ error: 'Acces interzis.' });
+    }
+    next();
+};
+
+// ══════════════════════════════════════════════════════════════
+// ██ AUTH — GOOGLE LOGIN (SINGURA SURSĂ!)
 // ══════════════════════════════════════════════════════════════
 app.post('/api/auth/google', async (req, res) => {
     try {
-        const r = await fetch(`${process.env.HUB_URL}/api/auth/google`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req.body) });
-        res.status(r.status).json(await r.json());
-    } catch(e) { res.status(500).json({ error: 'Nu pot comunica cu HUB.' }); }
-});
-app.get('/api/auth/me', authenticate, (req, res) => res.json({ user: req.user }));
-
-// ══════════════════════════════════════════════════════════════
-// ██ /api/process-yt — PIPELINE COMPLET (2 credite + voice chars)
-// ══════════════════════════════════════════════════════════════
-app.post('/api/process-yt', authenticate, async (req, res) => {
-    const t0 = Date.now();
-    const { url, quality = '1080', limba = 'română' } = req.body;
-    if (!url) return res.status(400).json({ error: 'URL lipsă' });
-
-    const parsed = sanitizeYouTubeUrl(url);
-    if (!parsed) return res.status(400).json({ error: 'Link YouTube invalid.' });
-
-    const { cleanUrl, videoId } = parsed;
-    const outputPath = path.join(DOWNLOAD_DIR, `${videoId}_${quality}.mp4`);
-    console.log(`\n${ts()} ══ /api/process-yt | ${videoId} | ${quality}p | ${limba}`);
-
-    let creditResult;
-    try {
-        const cached = await VideoCache.findOne({ videoId }).catch(() => null);
-        if (cached && fs.existsSync(outputPath) && fs.statSync(outputPath).size > 100*1024) {
-            const balance = await hubAPI.checkCredits(req.userId);
-            return res.json({ status:'ok', downloadUrl:`/download/${path.basename(outputPath)}`, originalText: cached.originalText, translatedText: cached.translatedText, creditsLeft: balance.credits, voice_characters: balance.voice_characters });
-        }
-
-        try { creditResult = await hubAPI.useCredits(req.userId, 2); }
-        catch(e) { return res.status(403).json({ error: 'Credite insuficiente. Ai nevoie de 2 credite pentru pipeline complet.' }); }
-
-        const [aiData] = await Promise.all([
-            getTranscriptAndTranslation(cleanUrl, videoId, limba),
-            downloadVideo(cleanUrl, outputPath, quality),
-        ]);
-
-        await VideoCache.create({ videoId, originalText: aiData.original, translatedText: aiData.translated }).catch(() => {});
-        console.log(`${ts()} ✅ TOTAL: ${elapsed(t0)}`);
-
-        res.json({ status: 'ok', downloadUrl: `/download/${path.basename(outputPath)}`, originalText: aiData.original, translatedText: aiData.translated, creditsLeft: creditResult.credits, voice_characters: creditResult.voice_characters });
-
-    } catch(e) {
-        console.error(`${ts()} ❌ FAIL [${videoId}]: ${e.message.slice(0,300)}`);
-        if (fs.existsSync(outputPath)) try { fs.unlinkSync(outputPath); } catch(e2) {}
-        if (creditResult) {
-            try {
-                const r = await fetch(`${process.env.HUB_URL}/api/internal/refund-credits`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-internal-key': process.env.INTERNAL_API_KEY }, body: JSON.stringify({ userId: req.userId, amount: 2 }) });
-                if (r.ok) { const rd = await r.json(); console.log(`${ts()} 🔄 Refund 2 credite → ${rd.credits}`); }
-            } catch(refErr) {}
-        }
-        res.status(500).json({ error: 'Serverul nu a putut procesa videoul. Încearcă alt link.' });
-    }
-});
-
-// ══════════════════════════════════════════════════════════════
-// ██ /api/transcribe — Whisper pe fișier uploadat
-// ══════════════════════════════════════════════════════════════
-app.post('/api/transcribe', authenticate, uploadTmp.single('audio'), async (req, res) => {
-    const tmpPath = req.file?.path;
-    try {
-        if (!req.file) return res.status(400).json({ error: 'Fișier audio lipsă.' });
-        const mp3Path = tmpPath + '.mp3';
-        fs.renameSync(tmpPath, mp3Path);
-        const tr = await openai.audio.transcriptions.create({ file: fs.createReadStream(mp3Path), model: 'whisper-1' });
-        try { fs.unlinkSync(mp3Path); } catch(e) {}
-        res.json({ transcript: tr.text });
-    } catch(e) {
-        if (tmpPath && fs.existsSync(tmpPath)) try { fs.unlinkSync(tmpPath); } catch(_) {}
-        res.status(500).json({ error: 'Eroare transcriere: ' + e.message });
-    }
-});
-
-// ══════════════════════════════════════════════════════════════
-// ██ /api/translate — traducere GPT
-// ══════════════════════════════════════════════════════════════
-app.post('/api/translate', authenticate, async (req, res) => {
-    try {
-        const { text, limba = 'română' } = req.body;
-        if (!text) return res.status(400).json({ error: 'Text lipsă.' });
-        const completion = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
-            messages: [
-                { role: 'system', content: `Ești un traducător profesionist. Traduce textul primit în ${limba}. Returnează DOAR textul tradus.` },
-                { role: 'user', content: text.substring(0, 10000) }
-            ],
+        const ticket = await googleClient.verifyIdToken({
+            idToken: req.body.credential,
+            audience: process.env.GOOGLE_CLIENT_ID
         });
-        res.json({ translated: completion.choices[0].message.content });
-    } catch(e) { res.status(500).json({ error: 'Eroare traducere: ' + e.message }); }
-});
+        const payload = ticket.getPayload();
+        let user = await User.findOne({ googleId: payload.sub });
+        let isNewUser = false;
 
-// ══════════════════════════════════════════════════════════════
-// ██ /api/generate — Voice Generation AI33
-// ══════════════════════════════════════════════════════════════
-app.post('/api/generate', authenticate, async (req, res) => {
-    try {
-        const { text, voiceId, voice, stability, similarity_boost, speed } = req.body;
-        if (!text) return res.status(400).json({ error: 'Text lipsă.' });
+        if (!user) {
+            const userCount = await User.countDocuments();
+            if (userCount >= 1200) {
+                const dejaInLista = await Waitlist.findOne({ email: payload.email });
+                if (!dejaInLista) await Waitlist.create({ email: payload.email, name: payload.name });
+                return res.status(403).json({
+                    error: 'BETA_FULL',
+                    message: 'Locurile limitate pentru Beta s-au epuizat! Te-am adăugat pe lista de așteptare.',
+                    discordLink: 'https://discord.gg/h8Ah6VKDzm'
+                });
+            }
 
-        const cost = text.replace(/\s+/g, '').length;
-        const balance = await hubAPI.checkCredits(req.userId);
-        if ((balance.voice_characters || 0) < cost) return res.status(403).json({ error: `Caractere insuficiente. Ai nevoie de ${cost}.` });
+            // Generează cod referral unic
+            const referralCode = payload.name
+                ? payload.name.split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '') + crypto.randomBytes(3).toString('hex')
+                : 'viralio' + crypto.randomBytes(4).toString('hex');
 
-        const resolvedVoiceId = voiceId || 'nPczCjzI2devNBz1zQrb';
+            // ── ANTI-FRAUD: captează IP-ul real ──
+            const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim()
+                || req.headers['x-real-ip']
+                || req.connection?.remoteAddress
+                || 'unknown';
 
-        // FIX #4 server-side: clamp speed la 0.70–1.20 conform API
-        const clampedSpeed = Math.min(1.20, Math.max(0.70, parseFloat(speed) || 1.0));
+            // Bonusuri de bază
+            let bonusCredits = 0;
+            let referredByCode = req.body.referralCode || null;
+            let referralValid = false;
 
-        let ai33Resp;
-        try {
-            ai33Resp = await fetch(`${AI33_BASE_URL}/v1/text-to-speech/${resolvedVoiceId}?output_format=mp3_44100_128`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json', 'xi-api-key': AI33_API_KEY },
-                body: JSON.stringify({ text, model_id: 'eleven_multilingual_v2', voice_settings: { stability: parseFloat(stability)||0.5, similarity_boost: parseFloat(similarity_boost)||0.75, speed: clampedSpeed }, with_transcript: false }),
-                signal: AbortSignal.timeout(15000),
+            // Verifică dacă codul de referral există + anti-fraud
+            if (referredByCode) {
+                const referrer = await User.findOne({ referralCode: referredByCode });
+                if (!referrer || referrer.email === payload.email) {
+                    referredByCode = null; // cod invalid sau auto-referral
+                } else {
+                    // ── ANTI-FRAUD CHECK 1: Același IP ──
+                    // Câți useri cu referral de la ORICINE s-au înregistrat de pe acest IP în ultimele 24h?
+                    const recentFromSameIp = await User.countDocuments({
+                        registrationIp: clientIp,
+                        referredBy: { $ne: null },
+                        createdAt: { $gte: new Date(Date.now() - REFERRAL_IP_WINDOW_MS) }
+                    });
+                    if (clientIp !== 'unknown' && recentFromSameIp >= REFERRAL_IP_LIMIT) {
+                        console.warn('🚫 ANTI-FRAUD: IP ' + clientIp + ' a depășit limita de referral (' + recentFromSameIp + ')');
+                        referredByCode = null; // nu mai acordă bonus, dar lasă contul să se creeze
+                    }
+
+                    // ── ANTI-FRAUD CHECK 2: Același domeniu email ──
+                    if (referredByCode) {
+                        const refDomain = referrer.email.split('@')[1];
+                        const newDomain = payload.email.split('@')[1];
+                        // Blochează doar domenii custom (nu gmail/yahoo/hotmail etc.)
+                        const commonDomains = ['gmail.com','googlemail.com','yahoo.com','hotmail.com','outlook.com','icloud.com','protonmail.com','live.com','mail.com','aol.com','proton.me'];
+                        if (refDomain === newDomain && !commonDomains.includes(refDomain)) {
+                            console.warn('🚫 ANTI-FRAUD: Același domeniu custom ' + refDomain);
+                            referredByCode = null;
+                        }
+                    }
+
+                    // ── ANTI-FRAUD CHECK 3: Referrerul își invită propriul IP ──
+                    if (referredByCode && referrer.registrationIp === clientIp && clientIp !== 'unknown') {
+                        console.warn('🚫 ANTI-FRAUD: Referrer IP identic cu noul user (' + clientIp + ')');
+                        referredByCode = null;
+                    }
+
+                    if (referredByCode) {
+                        bonusCredits = 3;
+                        referralValid = true;
+                    }
+                }
+            }
+
+            user = new User({
+                googleId: payload.sub, email: payload.email,
+                name: payload.name, picture: payload.picture,
+                credits: 10 + bonusCredits, voice_characters: 3000,
+                referralCode: referralCode,
+                referredBy: referredByCode,
+                registrationIp: clientIp,
             });
-        } catch(fetchErr) {
-            if (fetchErr.name === 'TimeoutError' || fetchErr.name === 'AbortError') return res.status(503).json({ error: 'Serverul de voce nu răspunde.' });
-            throw fetchErr;
+            await user.save();
+            isNewUser = true;
+
+            // Acordă credite referrerului — TIER-AWARE
+            if (referralValid && referredByCode) {
+                const referrer = await User.findOne({ referralCode: referredByCode });
+                if (referrer) {
+                    const newCount = (referrer.referralCount || 0) + 1;
+                    const creditsForThis = getPerReferralCredits(newCount);
+                    const newTier = getCurrentTier(newCount);
+
+                    // Calculează bonus de tier dacă tocmai a avansat
+                    let tierBonus = 0;
+                    let tierBonusVoice = 0;
+                    const claimed = referrer.referralBonusesClaimed || [];
+                    if (newTier > 0 && !claimed.includes(newTier)) {
+                        tierBonus = REFERRAL_TIERS[newTier].bonus;
+                        tierBonusVoice = REFERRAL_TIERS[newTier].bonusVoice;
+                    }
+
+                    const updateOps = {
+                        $inc: {
+                            credits: creditsForThis + tierBonus,
+                            referralCount: 1,
+                            referralCreditsEarned: creditsForThis + tierBonus,
+                            voice_characters: tierBonusVoice,
+                        },
+                        referralTier: newTier,
+                    };
+                    if (tierBonus > 0) {
+                        updateOps.$addToSet = { referralBonusesClaimed: newTier };
+                    }
+
+                    await User.findOneAndUpdate({ referralCode: referredByCode }, updateOps);
+                    console.log('🎁 REFERRAL: ' + payload.email + ' invitat de ' + referredByCode
+                        + ' | +' + creditsForThis + 'cr'
+                        + (tierBonus ? ' + TIER BONUS +' + tierBonus + 'cr +' + tierBonusVoice + 'voice' : '')
+                        + ' | tier=' + newTier + ' count=' + newCount);
+                }
+            }
         }
 
-        if (!ai33Resp.ok) {
-            if (ai33Resp.status === 429) return res.status(429).json({ error: 'Suprasolicitat. Așteaptă câteva secunde.' });
-            throw new Error(`AI33 eroare ${ai33Resp.status}`);
+        // Dacă userul existent nu are referralCode, generează-i unul
+        if (!user.referralCode) {
+            for (let attempt = 0; attempt < 3; attempt++) {
+                try {
+                    const referralCode = user.name
+                        ? user.name.split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '') + crypto.randomBytes(3).toString('hex')
+                        : 'viralio' + crypto.randomBytes(4).toString('hex');
+                    user.referralCode = referralCode;
+                    await user.save();
+                    break;
+                } catch (e) {
+                    if (e.code === 11000 && attempt < 2) continue;
+                    console.error('⚠️ Eroare generare referralCode:', e.message);
+                    break;
+                }
+            }
         }
 
-        const ai33Data = await ai33Resp.json();
-        if (!ai33Data.success || !ai33Data.task_id) throw new Error('AI33 nu a returnat task_id.');
-
-        const outputUrl = await pollAI33Task(ai33Data.task_id);
-        const fileName = `voice_${Date.now()}.mp3`;
-        await downloadVoiceFile(outputUrl, path.join(DOWNLOAD_DIR, fileName));
-
-        try { await hubAPI.useVoiceChars(req.userId, cost); } catch(e) {}
-
-        res.json({ audioUrl: `/download/${fileName}`, remaining_chars: (balance.voice_characters||0) - cost });
-
-    } catch(error) {
-        res.status(500).json({ error: error.message || 'Eroare la generarea vocii.' });
+        const sessionToken = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+        res.json({
+            token: sessionToken,
+            isNewUser,
+            user: {
+                name: user.name, picture: user.picture,
+                credits: user.credits, voice_characters: user.voice_characters,
+                email: user.email, subscriptionPlan: user.subscriptionPlan,
+                subscriptionStatus: user.subscriptionStatus,
+                referralCode: user.referralCode,
+            }
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(400).json({ error: 'Eroare Google' });
     }
 });
 
+app.get('/api/auth/me', authenticate, async (req, res) => {
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ error: 'User inexistent.' });
+    res.json({
+        user: {
+            name: user.name, picture: user.picture,
+            credits: user.credits, voice_characters: user.voice_characters,
+            email: user.email, subscriptionPlan: user.subscriptionPlan,
+            subscriptionStatus: user.subscriptionStatus,
+            currentPeriodEnd: user.currentPeriodEnd,
+            cancelAt: user.subscriptionStatus === 'canceling' ? user.currentPeriodEnd : null,
+            referralCode: user.referralCode,
+            retentionOfferUsed: !!user.retentionOfferUsed,
+        }
+    });
+});
+
 // ══════════════════════════════════════════════════════════════
-// ██ /api/smart-cut — silence remove (0.5 credite)
+// ██ ENDPOINTURI INTER-SERVICII (apelate de celelalte app-uri)
 // ══════════════════════════════════════════════════════════════
-app.post('/api/smart-cut', authenticate, uploadTmp.single('file'), async (req, res) => {
+
+// 1. Verificare token — celelalte app-uri trimit JWT-ul userului, HUB-ul îl validează
+app.post('/api/internal/verify-token', authenticateInternal, async (req, res) => {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ error: 'Token lipsă.' });
+
     try {
-        const balance = await hubAPI.checkCredits(req.userId);
-        if (balance.credits < 0.5) { if (req.file) try{fs.unlinkSync(req.file.path);}catch(e){} return res.status(403).json({ error: 'Cost: 0.5 Credite. Fonduri insuficiente.' }); }
-        if (!req.file) return res.status(400).json({ error: 'Fișier lipsă.' });
-        const inputFile = req.file.path;
-        const outputFile = path.join(PROCESSED_DIR, `cut_${Date.now()}.mp3`);
-        const threshold = req.body.threshold || '-45dB';
-        const minSilence = req.body.minSilence || '0.35';
-        const af = `silenceremove=start_periods=1:start_duration=0.1:start_threshold=${threshold}:stop_periods=-1:stop_duration=${minSilence}:stop_threshold=${threshold}`;
-        exec(`ffmpeg -y -i "${inputFile}" -af "${af}" "${outputFile}"`, async (error) => {
-            if (fs.existsSync(inputFile)) try{fs.unlinkSync(inputFile);}catch(e){}
-            if (error) return res.status(500).json({ error: 'Eroare procesare audio.' });
-            try { const r = await hubAPI.useCredits(req.userId, 0.5); res.json({ status:'ok', downloadUrl:`/download/${path.basename(outputFile)}`, creditsLeft: r.credits }); }
-            catch(e) { res.json({ status:'ok', downloadUrl:`/download/${path.basename(outputFile)}`, creditsLeft:0 }); }
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const user = await User.findById(decoded.userId);
+        if (!user) return res.status(404).json({ error: 'User inexistent.' });
+
+        res.json({
+            userId: user._id,
+            user: {
+                name: user.name, picture: user.picture,
+                credits: user.credits, voice_characters: user.voice_characters,
+                email: user.email, subscriptionPlan: user.subscriptionPlan,
+                subscriptionStatus: user.subscriptionStatus,
+            }
         });
-    } catch(e) {
-        if (req.file && fs.existsSync(req.file.path)) try{fs.unlinkSync(req.file.path);}catch(e2){}
+    } catch (e) {
+        return res.status(401).json({ error: 'Token invalid sau expirat.' });
+    }
+});
+
+// 2. Scade credite — atomic, cu verificare $gte
+app.post('/api/internal/use-credits', authenticateInternal, async (req, res) => {
+    const { userId, amount } = req.body;
+    if (!userId || !amount || amount <= 0) return res.status(400).json({ error: 'userId și amount sunt obligatorii.' });
+
+    const user = await User.findOneAndUpdate(
+        { _id: userId, credits: { $gte: amount } },
+        { $inc: { credits: -amount } },
+        { new: true }
+    );
+
+    if (!user) {
+        // Verificăm dacă nu exista sau nu avea credite
+        const exists = await User.findById(userId);
+        if (!exists) return res.status(404).json({ error: 'User inexistent.' });
+        return res.status(403).json({ error: 'Credite insuficiente.', credits: exists.credits });
+    }
+
+    res.json({ credits: user.credits });
+});
+
+// 3. Scade voice_characters — atomic
+app.post('/api/internal/use-voice-chars', authenticateInternal, async (req, res) => {
+    const { userId, amount } = req.body;
+    if (!userId || !amount || amount <= 0) return res.status(400).json({ error: 'userId și amount sunt obligatorii.' });
+
+    const user = await User.findOneAndUpdate(
+        { _id: userId, voice_characters: { $gte: amount } },
+        { $inc: { voice_characters: -amount } },
+        { new: true }
+    );
+
+    if (!user) {
+        const exists = await User.findById(userId);
+        if (!exists) return res.status(404).json({ error: 'User inexistent.' });
+        return res.status(403).json({ error: 'Caractere voce insuficiente.', voice_characters: exists.voice_characters });
+    }
+
+    res.json({ voice_characters: user.voice_characters });
+});
+
+// 4. Verifică credite (fără a le scădea)
+app.post('/api/internal/check-credits', authenticateInternal, async (req, res) => {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ error: 'userId obligatoriu.' });
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ error: 'User inexistent.' });
+
+    res.json({ credits: user.credits, voice_characters: user.voice_characters });
+});
+
+// 5. Returnează info user complet (pentru /api/auth/me pe sub-app-uri)
+app.post('/api/internal/user-info', authenticateInternal, async (req, res) => {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ error: 'userId obligatoriu.' });
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ error: 'User inexistent.' });
+
+    res.json({
+        user: {
+            name: user.name, picture: user.picture,
+            credits: user.credits, voice_characters: user.voice_characters,
+            email: user.email, subscriptionPlan: user.subscriptionPlan,
+            subscriptionStatus: user.subscriptionStatus,
+            currentPeriodEnd: user.currentPeriodEnd,
+            referralCode: user.referralCode,
+        }
+    });
+});
+
+// ══════════════════════════════════════════════════════════════
+// ██ REFERRAL SYSTEM
+// ══════════════════════════════════════════════════════════════
+
+// Migration: generează referralCode pentru toți userii existenți care nu au
+// Apelează o singură dată: POST /api/internal/migrate-referral-codes
+app.post('/api/internal/migrate-referral-codes', authenticateInternal, async (req, res) => {
+    try {
+        const usersWithout = await User.find({ $or: [{ referralCode: null }, { referralCode: { $exists: false } }] });
+        let updated = 0;
+        for (const u of usersWithout) {
+            for (let attempt = 0; attempt < 3; attempt++) {
+                try {
+                    const code = u.name
+                        ? u.name.split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '') + crypto.randomBytes(3).toString('hex')
+                        : 'viralio' + crypto.randomBytes(4).toString('hex');
+                    u.referralCode = code;
+                    await u.save();
+                    updated++;
+                    break;
+                } catch (e) {
+                    if (e.code === 11000 && attempt < 2) continue;
+                    console.error('⚠️ Migration skip ' + u.email + ':', e.message);
+                    break;
+                }
+            }
+        }
+        res.json({ message: `Migration completă. ${updated}/${usersWithout.length} useri actualizați.` });
+    } catch (e) {
+        console.error('❌ Migration error:', e);
         res.status(500).json({ error: e.message });
     }
 });
 
-// ── DOWNLOAD FILE ─────────────────────────────────────────────
-app.get('/download/:filename', (req, res) => {
-    const filename = path.basename(req.params.filename);
-    for (const dir of [DOWNLOAD_DIR, PROCESSED_DIR]) {
-        const fp = path.resolve(dir, filename);
-        if (fp.startsWith(dir) && fs.existsSync(fp)) return res.download(fp);
+app.get('/api/referral/info', authenticate, async (req, res) => {
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ error: 'User inexistent.' });
+    if (!user.earlyAccess) return res.status(403).json({ error: 'REFERRAL_LOCKED' });
+
+    // Dacă userul nu are referralCode, generează-i unul acum
+    if (!user.referralCode) {
+        const code = user.name
+            ? user.name.split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '') + crypto.randomBytes(3).toString('hex')
+            : 'viralio' + crypto.randomBytes(4).toString('hex');
+        user.referralCode = code;
+        await user.save();
     }
-    res.status(404).send('Fișierul nu mai există sau a expirat.');
+
+    const count = user.referralCount || 0;
+    const currentTier = getCurrentTier(count);
+    const nextTierIdx = currentTier < REFERRAL_TIERS.length - 1 ? currentTier + 1 : null;
+    const claimed = user.referralBonusesClaimed || [];
+
+    // IMPORTANT: doar caută invitații dacă referralCode e valid
+    let referredUsers = [];
+    if (user.referralCode) {
+        referredUsers = await User.find({ referredBy: user.referralCode })
+            .select('name picture createdAt')
+            .sort({ createdAt: -1 })
+            .limit(20)
+            .lean();
+    }
+
+    res.json({
+        referralCode: user.referralCode,
+        referralLink: process.env.APP_URL + '/?ref=' + user.referralCode,
+        referralCount: count,
+        referralCreditsEarned: user.referralCreditsEarned || 0,
+        // Tier system
+        currentTier,
+        currentTierData: REFERRAL_TIERS[currentTier],
+        nextTier: nextTierIdx !== null ? REFERRAL_TIERS[nextTierIdx] : null,
+        nextTierIndex: nextTierIdx,
+        remainingForNext: nextTierIdx !== null ? REFERRAL_TIERS[nextTierIdx].minReferrals - count : 0,
+        allTiers: REFERRAL_TIERS.map((t, i) => ({
+            ...t,
+            index: i,
+            reached: count >= t.minReferrals,
+            bonusClaimed: claimed.includes(i),
+            current: i === currentTier,
+        })),
+        recentReferrals: referredUsers.map(u => ({
+            name: u.name,
+            picture: u.picture,
+            date: u.createdAt,
+        })),
+    });
 });
 
-// ── CURĂȚARE 24h ─────────────────────────────────────────────
-setInterval(() => {
-    const now = Date.now(), exts = ['.mp4','.mp3','.tmp','.m4a','.vtt'];
-    for (const dir of [DOWNLOAD_DIR, PROCESSED_DIR]) {
-        try { fs.readdirSync(dir).forEach(file => { if (exts.some(e=>file.endsWith(e))) { const fp=path.join(dir,file); try{if(now-fs.statSync(fp).mtimeMs>86400000)fs.unlinkSync(fp);}catch(e){} } }); } catch(e) {}
-    }
-}, 3600000);
+// ══════════════════════════════════════════════════════════════
+// ██ STRIPE ROUTES
+// ══════════════════════════════════════════════════════════════
+app.post('/api/stripe/subscribe', authenticate, async (req, res) => {
+    const { plan } = req.body;
+    const interval = req.body.interval || 'monthly';
+    const priceMap = {
+        starter: interval === 'yearly' ? process.env.STRIPE_PRICE_STARTER_YEARLY : process.env.STRIPE_PRICE_STARTER,
+        creator: interval === 'yearly' ? process.env.STRIPE_PRICE_CREATOR_YEARLY : process.env.STRIPE_PRICE_CREATOR,
+        agency:  interval === 'yearly' ? process.env.STRIPE_PRICE_AGENCY_YEARLY  : process.env.STRIPE_PRICE_AGENCY,
+    };
+    const priceId = priceMap[plan];
+    if (!priceId) return res.status(400).json({ error: 'Plan invalid' });
 
-app.listen(PORT, () => {
-    console.log(`\n🚀 Viralio Pipeline · port ${PORT}`);
-    console.log(`   ✅ /api/process-yt  — YT 1080p + Transcriere (2 credite)`);
-    console.log(`   ✅ /api/generate    — Voice Generation (voice_characters)`);
-    console.log(`   ✅ /api/smart-cut   — Smart Cut (0.5 credite)`);
-    console.log(`   ✅ /api/transcribe  — Whisper upload`);
-    console.log(`   ✅ /api/translate   — Traducere GPT\n`);
-    console.log(`   📁 Static files     — servite din: ${__dirname}`);
+    const user = await User.findById(req.userId);
+    try {
+        const sessionParams = {
+            mode: 'subscription',
+            line_items: [{ price: priceId, quantity: 1 }],
+            success_url: process.env.APP_URL + '/?subscribed=1',
+            cancel_url:  process.env.APP_URL + '/#pricing',
+            metadata: { userId: user._id.toString() },
+            subscription_data: { metadata: { userId: user._id.toString() } },
+        };
+        if (user.stripeCustomerId) sessionParams.customer = user.stripeCustomerId;
+        else sessionParams.customer_email = user.email;
+
+        const session = await stripe.checkout.sessions.create(sessionParams);
+        res.json({ url: session.url });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Eroare Stripe' });
+    }
 });
+
+// ══════════════════════════════════════════════════════════════
+// ██ SUBSCRIPTIONS DASHBOARD — toate abonamentele unui user
+// ══════════════════════════════════════════════════════════════
+app.get('/api/stripe/subscriptions', authenticate, async (req, res) => {
+    try {
+        const user = await User.findById(req.userId);
+        if (!user) return res.status(404).json({ error: 'User negăsit.' });
+
+        let customerId = user.stripeCustomerId;
+
+        // Dacă nu avem stripeCustomerId în DB, căutăm după email în Stripe
+        if (!customerId) {
+            const customers = await stripe.customers.list({ email: user.email, limit: 1 });
+            if (customers.data.length > 0) {
+                customerId = customers.data[0].id;
+                // Salvăm în DB ca să nu mai căutăm data viitoare
+                await User.findByIdAndUpdate(req.userId, { stripeCustomerId: customerId });
+            }
+        }
+
+        if (!customerId) {
+            return res.json({ subscriptions: [], invoices: [] });
+        }
+
+        const stripeSubscriptions = await stripe.subscriptions.list({
+            customer: customerId,
+            limit: 10,
+            expand: ['data.items.data.price.product'],
+        });
+
+        const stripeInvoices = await stripe.invoices.list({
+            customer: customerId,
+            limit: 5,
+        });
+
+        const PLAN_NAMES = {
+            [process.env.STRIPE_PRICE_STARTER]:        'Starter',
+            [process.env.STRIPE_PRICE_CREATOR]:        'Creator',
+            [process.env.STRIPE_PRICE_AGENCY]:         'Agency',
+            [process.env.STRIPE_PRICE_STARTER_YEARLY]: 'Starter Anual',
+            [process.env.STRIPE_PRICE_CREATOR_YEARLY]: 'Creator Anual',
+            [process.env.STRIPE_PRICE_AGENCY_YEARLY]:  'Agency Anual',
+        };
+
+        const subscriptions = stripeSubscriptions.data.map(sub => {
+            const priceId = sub.items.data[0]?.price?.id;
+            const price   = sub.items.data[0]?.price;
+            const product = price?.product;
+            return {
+                id: sub.id,
+                planName: PLAN_NAMES[priceId] || product?.name || 'Plan necunoscut',
+                status: sub.status,
+                cancelAtPeriodEnd: sub.cancel_at_period_end,
+                currentPeriodStart: new Date(sub.current_period_start * 1000),
+                currentPeriodEnd:   new Date(sub.current_period_end * 1000),
+                cancelAt: sub.cancel_at ? new Date(sub.cancel_at * 1000) : null,
+                amount:   price?.unit_amount ? price.unit_amount / 100 : 0,
+                currency: price?.currency?.toUpperCase() || 'RON',
+                interval: price?.recurring?.interval || 'month',
+                isPrimary: sub.id === user.subscriptionId,
+            };
+        });
+
+        const invoices = stripeInvoices.data.map(inv => ({
+            id: inv.id,
+            number: inv.number,
+            amount: inv.amount_paid / 100,
+            currency: inv.currency?.toUpperCase() || 'RON',
+            status:  inv.status,
+            date:    new Date(inv.created * 1000),
+            pdfUrl:  inv.invoice_pdf,
+            hostedUrl: inv.hosted_invoice_url,
+        }));
+
+        res.json({ subscriptions, invoices });
+    } catch (err) {
+        console.error('❌ Subscriptions dashboard error:', err.message);
+        res.status(500).json({ error: 'Eroare la încărcarea abonamentelor.' });
+    }
+});
+
+// ── Cancel a specific subscription by ID ──
+app.post('/api/stripe/cancel-subscription-id', authenticate, async (req, res) => {
+    try {
+        const { subscriptionId } = req.body;
+        if (!subscriptionId) return res.status(400).json({ error: 'ID lipsă.' });
+
+        const user = await User.findById(req.userId);
+        const sub  = await stripe.subscriptions.retrieve(subscriptionId);
+
+        if (sub.customer !== user.stripeCustomerId) {
+            return res.status(403).json({ error: 'Acces interzis.' });
+        }
+
+        const updated = await stripe.subscriptions.update(subscriptionId, {
+            cancel_at_period_end: true,
+        });
+
+        if (subscriptionId === user.subscriptionId) {
+            await User.findByIdAndUpdate(req.userId, {
+                subscriptionStatus: 'canceling',
+                currentPeriodEnd: new Date(updated.current_period_end * 1000),
+            });
+        }
+
+        res.json({ success: true, cancelAt: new Date(updated.current_period_end * 1000) });
+    } catch (err) {
+        console.error('❌ Cancel-by-ID error:', err.message);
+        res.status(500).json({ error: 'Eroare la anulare.' });
+    }
+});
+
+// ── Stripe Customer Portal ──
+app.post('/api/stripe/portal', authenticate, async (req, res) => {
+    res.json({ url: 'https://billing.stripe.com/p/login/dRm00k1hTdQS6fxfbO1Nu00' });
+});
+
+app.post('/api/stripe/topup', authenticate, async (req, res) => {
+    const { package: pkg } = req.body;
+    const topupMap = {
+        micro:    { priceId: process.env.STRIPE_PRICE_TOPUP_50,  credits: 50  },
+        standard: { priceId: process.env.STRIPE_PRICE_TOPUP_150, credits: 150 },
+        pro:      { priceId: process.env.STRIPE_PRICE_TOPUP_400, credits: 400 },
+    };
+    const topup = topupMap[pkg];
+    if (!topup) return res.status(400).json({ error: 'Pachet invalid' });
+
+    const user = await User.findById(req.userId);
+    const isSubscriber = user.subscriptionStatus === 'active';
+    try {
+        const sessionParams = {
+            mode: 'payment',
+            line_items: [{ price: topup.priceId, quantity: 1 }],
+            success_url: process.env.APP_URL + '/?topup=1',
+            cancel_url:  process.env.APP_URL + '/',
+            metadata: { topup_price_id: topup.priceId, userId: user._id.toString() },
+            payment_intent_data: { metadata: { topup_price_id: topup.priceId } },
+        };
+        if (user.stripeCustomerId) sessionParams.customer = user.stripeCustomerId;
+        else sessionParams.customer_email = user.email;
+        if (isSubscriber) sessionParams.discounts = [{ coupon: process.env.STRIPE_COUPON_SUBSCRIBER_10 }];
+
+        const session = await stripe.checkout.sessions.create(sessionParams);
+        res.json({ url: session.url, discount: isSubscriber });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Eroare Stripe' });
+    }
+});
+
+// ══════════════════════════════════════════════════════════════
+// ██ CANCEL SUBSCRIPTION (in-app, fără Stripe portal)
+// ══════════════════════════════════════════════════════════════
+app.post('/api/stripe/cancel-subscription', authenticate, async (req, res) => {
+    try {
+        const user = await User.findById(req.userId);
+        if (!user || !user.subscriptionId) return res.status(400).json({ error: 'Nu ai un abonament activ.' });
+
+        // Cancel at period end (nu imediat)
+        const sub = await stripe.subscriptions.update(user.subscriptionId, {
+            cancel_at_period_end: true
+        });
+
+        await User.findByIdAndUpdate(req.userId, {
+            subscriptionStatus: 'canceling',
+            currentPeriodEnd: new Date(sub.current_period_end * 1000)
+        });
+
+        res.json({
+            success: true,
+            cancelAt: new Date(sub.current_period_end * 1000)
+        });
+    } catch (err) {
+        console.error('❌ Cancel error:', err.message);
+        res.status(500).json({ error: 'Eroare la anulare.' });
+    }
+});
+
+// ══════════════════════════════════════════════════════════════
+// ██ REACTIVATE SUBSCRIPTION (anulat cancel_at_period_end)
+// ══════════════════════════════════════════════════════════════
+app.post('/api/stripe/reactivate-subscription', authenticate, async (req, res) => {
+    try {
+        const user = await User.findById(req.userId);
+        if (!user || !user.subscriptionId) {
+            return res.status(400).json({ error: 'Nu ai un abonament de reactivat.' });
+        }
+        if (user.subscriptionStatus !== 'canceling') {
+            return res.status(400).json({ error: 'Abonamentul nu este în curs de anulare.' });
+        }
+
+        // Anulează cancel_at_period_end
+        await stripe.subscriptions.update(user.subscriptionId, {
+            cancel_at_period_end: false
+        });
+
+        await User.findByIdAndUpdate(req.userId, {
+            subscriptionStatus: 'active'
+        });
+
+        console.log('♻️ REACTIVAT: ' + user.email);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('❌ Reactivate error:', err.message);
+        res.status(500).json({ error: 'Eroare la reactivare.' });
+    }
+});
+
+// Retention offer — aplică discount sau bonus credits (O SINGURĂ DATĂ)
+app.post('/api/stripe/retention-offer', authenticate, async (req, res) => {
+    const { action, reason } = req.body;
+    const user = await User.findById(req.userId);
+    if (!user || !user.subscriptionId) return res.status(400).json({ error: 'Nu ai un abonament activ.' });
+
+    // ── ANTI-ABUSE: o singură ofertă de retenție per user ──
+    if (user.retentionOfferUsed) {
+        return res.status(403).json({ error: 'Ai beneficiat deja de o ofertă de retenție. Această ofertă este disponibilă o singură dată.' });
+    }
+
+    try {
+        if (action === 'discount' || action === 'discount_plus') {
+            // Aplică 25% reducere pe următoarea factură via Stripe coupon
+            const coupon = await stripe.coupons.create({
+                percent_off: 25,
+                duration: 'once',
+                name: 'Retention 25% off - ' + reason
+            });
+
+            await stripe.subscriptions.update(user.subscriptionId, {
+                coupon: coupon.id
+            });
+
+            let bonusMsg = 'Reducerea de 25% a fost aplicată pe următoarea factură.';
+            let title = 'Reducere 25% aplicată!';
+
+            // discount_plus = discount + 15 credite bonus
+            if (action === 'discount_plus') {
+                await User.findByIdAndUpdate(req.userId, {
+                    $inc: { credits: 15 },
+                    retentionOfferUsed: new Date()
+                });
+                bonusMsg = 'Reducere 25% aplicată + 15 credite bonus adăugate!';
+                title = 'Reducere + credite aplicate!';
+            } else {
+                await User.findByIdAndUpdate(req.userId, { retentionOfferUsed: new Date() });
+            }
+
+            console.log('🎯 RETENTION (' + reason + '): ' + user.email + ' → ' + action);
+            return res.json({ success: true, title, message: bonusMsg });
+        }
+
+        if (action === 'bonus') {
+            // +20 credite bonus (nu 50, rezonabil)
+            await User.findByIdAndUpdate(req.userId, {
+                $inc: { credits: 20 },
+                retentionOfferUsed: new Date()
+            });
+            console.log('🎯 RETENTION (' + reason + '): ' + user.email + ' → +20 credite');
+            return res.json({
+                success: true,
+                title: '+20 credite adăugate!',
+                message: 'Ai primit 20 de credite bonus. Bucură-te de Viralio!'
+            });
+        }
+
+        return res.status(400).json({ error: 'Acțiune invalidă.' });
+    } catch (err) {
+        console.error('❌ Retention error:', err.message);
+        res.status(500).json({ error: 'Eroare la aplicarea ofertei.' });
+    }
+});
+
+app.use((req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+
+app.listen(PORT, () => console.log('🚀 HUB rulează pe portul ' + PORT));
