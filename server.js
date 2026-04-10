@@ -1,108 +1,379 @@
 require('dotenv').config();
 const express = require('express');
-const cors    = require('cors');
-const { exec } = require('child_process');
-const fs      = require('fs');
-const path    = require('path');
-const multer  = require('multer');
-const https   = require('https');
+const cors = require('cors');
+const { execFile, exec } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+const https = require('https');
+const crypto = require('crypto');
+const OpenAI = require('openai');
+const mongoose = require('mongoose');
+const multer = require('multer');
+const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
 
-// ✅ Auth centralizat prin HUB
 const { authenticate, hubAPI } = require('./hub-auth');
 
-const app  = express();
+// ── VALIDARE ENV ────────────────────────────
+const REQUIRED_ENV = ['OPENAI_API_KEY', 'HUB_URL', 'INTERNAL_API_KEY', 'AI33_API_KEY', 'PROXY_URL'];
+for (const key of REQUIRED_ENV) {
+    if (!process.env[key]) { console.error(`❌ Variabila de mediu lipsă: ${key}`); process.exit(1); }
+}
+
+const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ══════════════════════════════════════════════════════════════
-// ██ CONFIG
-// ══════════════════════════════════════════════════════════════
-const AI33_API_KEY  = process.env.AI33_API_KEY;
-const AI33_BASE_URL = 'https://api.ai33.pro';
-
-const CREDIT_COST = 2; // cost per usage pentru TOATE tool-urile
-
-const DOWNLOAD_DIR = path.join(__dirname, 'downloads');
-const PUBLIC_DIR   = path.join(__dirname, 'public');
-if (!fs.existsSync(DOWNLOAD_DIR)) fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
-
-const upload = multer({
-    dest: DOWNLOAD_DIR,
-    limits: { fileSize: 500 * 1024 * 1024 } // 500MB
+process.on('unhandledRejection', (reason) => {
+    console.error('⚠️ Unhandled Rejection:', reason?.message || reason);
 });
+app.set('trust proxy', 1);
 
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const AI33_API_KEY = process.env.AI33_API_KEY;
+const AI33_BASE_URL = 'https://api.ai33.pro';
+const PROXY_URL = process.env.PROXY_URL;
+
+// ── FOLDERE ─────────────────────────────────
+const DOWNLOAD_DIR = path.resolve(__dirname, 'downloads');
+const PROCESSED_DIR = path.resolve(__dirname, 'processed');
+for (const dir of [DOWNLOAD_DIR, PROCESSED_DIR]) {
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
+
+const YTDLP_PATH = '/usr/local/bin/yt-dlp';
+const uploadTmp = multer({ dest: DOWNLOAD_DIR, limits: { fileSize: 500 * 1024 * 1024 } });
+
+// ── SECURITATE ──────────────────────────────
+app.use(helmet({ contentSecurityPolicy: false, crossOriginOpenerPolicy: false, crossOriginEmbedderPolicy: false }));
 app.use(cors({ origin: '*' }));
-app.use(express.json());
-app.use(express.static(PUBLIC_DIR));
-app.use('/downloads', express.static(DOWNLOAD_DIR));
+app.use(express.json({ limit: '10kb' }));
+app.use(express.static(path.join(__dirname, 'public')));
+
+app.use('/api/process-yt', rateLimit({ windowMs: 60 * 1000, max: 10, message: { error: 'Maxim 10 video-uri pe minut.' } }));
+app.use('/api/auth/google', rateLimit({ windowMs: 15 * 60 * 1000, max: 20, message: { error: 'Prea multe încercări.' } }));
+
+// ── MONGO — cache YT ────────────────────────
+if (process.env.MONGO_URI) {
+    mongoose.connect(process.env.MONGO_URI)
+        .then(() => console.log('✅ Cache MongoDB conectat!'))
+        .catch(err => console.warn('⚠️ MongoDB indisponibil:', err.message));
+}
+const CacheSchema = new mongoose.Schema({
+    videoId: String, originalText: String, translatedText: String,
+    createdAt: { type: Date, expires: 86400, default: Date.now }
+});
+const VideoCache = mongoose.models.VideoCache || mongoose.model('VideoCache', CacheSchema);
 
 // ══════════════════════════════════════════════════════════════
-// ██ VOICE ID MAP (din voices.js — toate vocile AI33/ElevenLabs)
+// ██ TIMESTAMP HELPERS
 // ══════════════════════════════════════════════════════════════
-const VOICE_ID_MAP = {
-    "Bella":      "hpp4J3VqNfWAUOO0d1Us",
-    "Alex":       "yl2ZDV1MzN4HbQJbMihG",
-    "Roger":      "CwhRBWXzGAHq8TQ4Fs17",
-    "Sarah":      "EXAVITQu4vr4xnSDxMaL",
-    "Laura":      "FGY2WhTYpPnrIDTdsKH5",
-    "Charlie":    "IKne3meq5aSn9XLyUdCD",
-    "George":     "JBFqnCBsd6RMkjVDRZzb",
-    "Callum":     "N2lVS1w4EtoT3dr4eOWO",
-    "River":      "SAz9YHcvj6GT2YYXdXww",
-    "Harry":      "SOYHLrjzK2X1ezoPC6cr",
-    "Liam":       "TX3LPaxmHKxFdv7VOQHJ",
-    "Kuon":       "pMsXgVXv3BLzUgSXRplE",
-    "Aria":       "9BWtsMINqrJLrRacOk9x",
-    "Reginald":   "onwK4e9ZLuTAKqWW03F9",
-    "Jane":       "Xb7hH8MSUJpSbSDYk0k2",
-    "Juniper":    "zcAOhNBS3c14rBihAFp1",
-    "Arabella":   "jBpfuIE2acCO8z3wKNLl",
-    "Hope":       "ODq5zmih8GrVes37Dx9b",
-    "Blondie":    "XrExE9yKIg1WjnnlVkGX",
-    "Priyanka":   "c1Yh0AkPmCiEa4bBMJJU",
-    "Alexandra":  "ThT5KcBeYPX3keUQqHPh",
-    "Paul":       "nPczCjzI2devNBz1zQrb",
-    "Drew":       "29vD33N1CtxCmqQRPOHJ",
-    "Clyde":      "2EiwWnXFnvU5JabPnv8n",
-    "Dave":       "CYw3kZ02Hs0563khs1Fj",
-    "Fin":        "D38z5RcWu1voky8WS1ja",
-    "James":      "ZQe5CZNOzWyzPSCn5a3c",
-    "Austin":     "g5CIjZEefAph4nQFvHAz",
-    "Mark":       "UgBBYS2sOqTuMpoF3BR0",
-    "Rachel":     "21m00Tcm4TlvDq8ikWAM",
-    "Domi":       "AZnzlk1XvdvUeBnXmlld",
+function ts() { return `[${new Date().toISOString().slice(11, 23)}]`; }
+function elapsed(startMs) {
+    const ms = Date.now() - startMs;
+    return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`;
+}
+
+// ══════════════════════════════════════════════════════════════
+// ██ YT HELPERS
+// ══════════════════════════════════════════════════════════════
+function sanitizeYouTubeUrl(rawUrl) {
+    const url = (rawUrl || '').trim();
+    const m = url.match(/(?:v=|youtu\.be\/|shorts\/)([\w-]{11})/);
+    if (m) return { cleanUrl: `https://www.youtube.com/watch?v=${m[1]}`, videoId: m[1] };
+    return null;
+}
+
+function runYtDlp(args, opts = {}) {
+    return new Promise((resolve, reject) => {
+        execFile(YTDLP_PATH, args, { maxBuffer: 1024 * 1024 * 200, timeout: opts.timeout || 300000 }, (error, stdout, stderr) => {
+            if (error) {
+                const errMsg = (stderr || '').split('\n').filter(l => l.startsWith('ERROR:')).join(' ').trim() || error.message.slice(0, 300);
+                reject(new Error(errMsg));
+            } else {
+                resolve({ stdout: stdout?.trim() || '', stderr: stderr?.trim() || '' });
+            }
+        });
+    });
+}
+
+const COOKIES_DIR = process.env.COOKIES_DIR ? path.resolve(process.env.COOKIES_DIR) : path.resolve(__dirname, 'cookies');
+function cookiesFile() {
+    const f = path.join(COOKIES_DIR, 'youtube.txt');
+    return fs.existsSync(f) ? f : null;
+}
+
+function baseArgs() {
+    const args = ['--proxy', PROXY_URL, '--no-warnings', '--geo-bypass', '--no-cache-dir', '--retries', '5', '--fragment-retries', '5', '--no-check-certificates', '--no-playlist'];
+    const c = cookiesFile();
+    if (c) args.push('--cookies', c);
+    return args;
+}
+function baseArgsNoProxy() {
+    const full = baseArgs();
+    const idx = full.indexOf('--proxy');
+    if (idx !== -1) full.splice(idx, 2);
+    return full;
+}
+
+function curlDownload(url, outputPath, timeoutSec = 300, useProxy = false) {
+    return new Promise((resolve, reject) => {
+        const args = ['-sS', '-L', '--max-time', String(timeoutSec),
+            '-A', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36',
+            '-H', 'Referer: https://www.youtube.com/', '-H', 'Accept: */*', '-H', 'Accept-Encoding: identity'];
+        if (useProxy) args.push('--proxy', PROXY_URL);
+        args.push('-o', outputPath, url);
+        execFile('curl', args, { timeout: (timeoutSec + 10) * 1000 }, (err) => {
+            if (err) return reject(new Error(err.message.slice(0, 200)));
+            resolve();
+        });
+    });
+}
+
+// ══════════════════════════════════════════════════════════════
+// ██ DOWNLOAD VIDEO — calitate maximă
+// ══════════════════════════════════════════════════════════════
+const downloadVideo = async (url, outputPath) => {
+    const t0 = Date.now();
+    console.log(`${ts()} ▶ downloadVideo START`);
+    if (fs.existsSync(outputPath)) try { fs.unlinkSync(outputPath); } catch (e) {}
+
+    const strategies = [
+        { label: 'bestvideo+bestaudio', format: 'bestvideo+bestaudio/best' },
+        { label: 'best',                format: 'best' },
+    ];
+
+    let lastError = null, proxyRequired = false;
+
+    for (const strat of strategies) {
+        if (fs.existsSync(outputPath)) try { fs.unlinkSync(outputPath); } catch (e) {}
+        console.log(`${ts()} 🔍 Strategie video [${strat.label}]...`);
+        try {
+            let cdnUrls = null, viaProxy = false;
+
+            if (!proxyRequired) {
+                try {
+                    const t1 = Date.now();
+                    console.log(`${ts()} 🔍 --get-url fără proxy...`);
+                    const { stdout } = await runYtDlp([...baseArgsNoProxy(), '--get-url', '-f', strat.format, '--no-playlist', url], { timeout: 30000 });
+                    const urls = stdout.split('\n').filter(u => u.startsWith('http'));
+                    if (urls.length > 0) { cdnUrls = urls; viaProxy = false; console.log(`${ts()} ✅ ${urls.length} CDN URL(s) fără proxy (${elapsed(t1)})`); }
+                } catch (e) { proxyRequired = true; console.warn(`${ts()} ⚠️ fără proxy fail → proxy`); }
+            }
+
+            if (!cdnUrls) {
+                const t1 = Date.now();
+                console.log(`${ts()} 🔍 --get-url prin proxy...`);
+                const { stdout } = await runYtDlp([...baseArgs(), '--get-url', '-f', strat.format, '--no-playlist', url], { timeout: 45000 });
+                const urls = stdout.split('\n').filter(u => u.startsWith('http'));
+                if (urls.length > 0) { cdnUrls = urls; viaProxy = true; console.log(`${ts()} ✅ ${urls.length} CDN URL(s) proxy (${elapsed(t1)})`); }
+            }
+
+            if (!cdnUrls?.length) throw new Error('Niciun URL CDN returnat');
+
+            if (cdnUrls.length === 1) {
+                const t1 = Date.now();
+                console.log(`${ts()} ⬇️ curl download combinat (${viaProxy ? 'proxy' : 'direct'})...`);
+                await curlDownload(cdnUrls[0], outputPath, 300, viaProxy);
+                console.log(`${ts()} ✅ curl OK (${elapsed(t1)})`);
+            } else {
+                const videoTmp = outputPath.replace(/\.mp4$/, '_vtmp.mp4');
+                const audioTmp = outputPath.replace(/\.mp4$/, '_atmp.m4a');
+                try {
+                    const t1 = Date.now();
+                    console.log(`${ts()} ⬇️ curl video stream (${viaProxy ? 'proxy' : 'direct'})...`);
+                    await curlDownload(cdnUrls[0], videoTmp, 300, viaProxy);
+                    console.log(`${ts()} ✅ video stream OK (${elapsed(t1)})`);
+
+                    const t2 = Date.now();
+                    console.log(`${ts()} ⬇️ curl audio stream...`);
+                    await curlDownload(cdnUrls[1], audioTmp, 120, viaProxy);
+                    console.log(`${ts()} ✅ audio stream OK (${elapsed(t2)})`);
+
+                    const t3 = Date.now();
+                    console.log(`${ts()} 🔀 ffmpeg merge...`);
+                    await new Promise((res, rej) => execFile('ffmpeg', ['-i', videoTmp, '-i', audioTmp, '-c', 'copy', '-y', outputPath], { timeout: 120000 }, (err) => err ? rej(new Error('ffmpeg merge: ' + err.message.slice(0, 100))) : res()));
+                    console.log(`${ts()} ✅ ffmpeg merge OK (${elapsed(t3)})`);
+                } finally {
+                    [videoTmp, audioTmp].forEach(f => { if (fs.existsSync(f)) try { fs.unlinkSync(f); } catch (e) {} });
+                }
+            }
+
+            if (!fs.existsSync(outputPath)) throw new Error('Fișierul video nu a fost creat.');
+            const sizeMB = (fs.statSync(outputPath).size / 1024 / 1024).toFixed(2);
+            if (fs.statSync(outputPath).size < 50 * 1024) throw new Error(`Fișier prea mic: ${sizeMB} MB`);
+            console.log(`${ts()} ✅ Video OK: ${sizeMB} MB | total: ${elapsed(t0)}`);
+            return;
+
+        } catch (err) {
+            lastError = err;
+            console.warn(`${ts()} ⚠️ [${strat.label}] fail (${elapsed(t0)}): ${err.message.slice(0, 150)}`);
+
+            if (strat === strategies[strategies.length - 1]) {
+                const t1 = Date.now();
+                console.log(`${ts()} 🔄 Fallback yt-dlp clasic cu proxy...`);
+                try {
+                    await runYtDlp([...baseArgs(), '-f', 'bestvideo+bestaudio/best', '--merge-output-format', 'mp4', '--concurrent-fragments', '4', '-o', outputPath, url], { timeout: 600000 });
+                    if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 50 * 1024) {
+                        console.log(`${ts()} ✅ Fallback OK (${elapsed(t1)})`); return;
+                    }
+                } catch (fbErr) { console.warn(`${ts()} ⚠️ Fallback fail: ${fbErr.message.slice(0, 150)}`); }
+            }
+        }
+    }
+    throw new Error(lastError?.message || 'Nu am putut descărca videoul.');
 };
 
 // ══════════════════════════════════════════════════════════════
-// ██ AUTH ROUTES — proxy către HUB
+// ██ DOWNLOAD AUDIO (pentru Whisper)
 // ══════════════════════════════════════════════════════════════
-app.post('/api/auth/google', async (req, res) => {
-    try {
-        const response = await fetch(`${process.env.HUB_URL}/api/auth/google`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(req.body),
-        });
-        const data = await response.json();
-        res.status(response.status).json(data);
-    } catch (e) {
-        res.status(500).json({ error: 'Nu pot comunica cu serverul principal.' });
+const downloadAudio = async (url, audioPath) => {
+    const t0 = Date.now();
+    console.log(`${ts()} ▶ downloadAudio START`);
+    if (fs.existsSync(audioPath)) try { fs.unlinkSync(audioPath); } catch (e) {}
+
+    const strategies = [
+        { label: 'bestaudio', format: 'ba/bestaudio' },
+        { label: 'best',      format: 'best' },
+    ];
+
+    let lastError = null, proxyRequired = false;
+
+    for (const strat of strategies) {
+        if (fs.existsSync(audioPath)) try { fs.unlinkSync(audioPath); } catch (e) {}
+        try {
+            let cdnUrls = null, viaProxy = false;
+
+            if (!proxyRequired) {
+                try {
+                    const t1 = Date.now();
+                    const { stdout } = await runYtDlp([...baseArgsNoProxy(), '--get-url', '-f', strat.format, '--no-playlist', url], { timeout: 30000 });
+                    const urls = stdout.split('\n').filter(u => u.startsWith('http'));
+                    if (urls.length > 0) { cdnUrls = urls; viaProxy = false; console.log(`${ts()} ✅ audio CDN fără proxy (${elapsed(t1)})`); }
+                } catch (_) { proxyRequired = true; }
+            }
+
+            if (!cdnUrls) {
+                const t1 = Date.now();
+                console.log(`${ts()} 🔍 audio --get-url proxy [${strat.label}]...`);
+                const { stdout } = await runYtDlp([...baseArgs(), '--get-url', '-f', strat.format, '--no-playlist', url], { timeout: 45000 });
+                const urls = stdout.split('\n').filter(u => u.startsWith('http'));
+                if (urls.length > 0) { cdnUrls = urls; viaProxy = true; console.log(`${ts()} ✅ audio CDN proxy (${elapsed(t1)})`); }
+            }
+
+            if (!cdnUrls?.length) throw new Error('Niciun URL CDN audio returnat');
+
+            const audioStreamUrl = cdnUrls[cdnUrls.length - 1];
+            const tempRaw = audioPath.replace(/\.mp3$/, '_raw.tmp');
+
+            const t1 = Date.now();
+            console.log(`${ts()} ⬇️ curl audio (${viaProxy ? 'proxy' : 'direct'})...`);
+            await curlDownload(audioStreamUrl, tempRaw, 120, viaProxy);
+            console.log(`${ts()} ✅ curl audio OK (${elapsed(t1)})`);
+
+            if (!fs.existsSync(tempRaw) || fs.statSync(tempRaw).size < 1000) throw new Error('Audio brut gol');
+
+            const t2 = Date.now();
+            console.log(`${ts()} 🔀 ffmpeg → mp3...`);
+            await new Promise((res, rej) => execFile('ffmpeg', ['-i', tempRaw, '-vn', '-acodec', 'libmp3lame', '-q:a', '0', '-y', audioPath], { timeout: 120000 }, (err) => err ? rej(new Error('ffmpeg audio: ' + err.message.slice(0, 100))) : res()));
+            console.log(`${ts()} ✅ ffmpeg mp3 OK (${elapsed(t2)})`);
+
+            try { fs.unlinkSync(tempRaw); } catch (e) {}
+            if (!fs.existsSync(audioPath) || fs.statSync(audioPath).size < 1000) throw new Error('MP3 gol');
+            console.log(`${ts()} ✅ Audio OK | total: ${elapsed(t0)}`);
+            return;
+
+        } catch (err) {
+            lastError = err;
+            const tempRaw = audioPath.replace(/\.mp3$/, '_raw.tmp');
+            if (fs.existsSync(tempRaw)) try { fs.unlinkSync(tempRaw); } catch (e) {}
+            console.warn(`${ts()} ⚠️ Audio [${strat.label}] fail: ${err.message.slice(0, 150)}`);
+
+            if (strat === strategies[strategies.length - 1]) {
+                const t1 = Date.now();
+                console.log(`${ts()} 🔄 Fallback audio yt-dlp clasic...`);
+                try {
+                    await runYtDlp([...baseArgs(), '-f', 'ba/bestaudio/best', '--extract-audio', '--audio-format', 'mp3', '--audio-quality', '0', '-o', audioPath, url], { timeout: 300000 });
+                    if (fs.existsSync(audioPath) && fs.statSync(audioPath).size > 1000) { console.log(`${ts()} ✅ Fallback audio OK (${elapsed(t1)})`); return; }
+                } catch (fbErr) { console.warn(`${ts()} ⚠️ Fallback audio fail: ${fbErr.message.slice(0, 150)}`); }
+            }
+        }
     }
-});
-
-app.get('/api/auth/me', authenticate, async (req, res) => {
-    res.json({ user: req.user });
-});
+    throw new Error(lastError?.message || 'Nu am putut extrage audio.');
+};
 
 // ══════════════════════════════════════════════════════════════
-// ██ HELPER — Descărcare audio de pe URL
+// ██ TRANSCRIERE + TRADUCERE ROMÂNĂ
 // ══════════════════════════════════════════════════════════════
-function downloadAudio(url, dest) {
+const getTranscriptAndTranslation = async (url, videoId) => {
+    const t0 = Date.now();
+    let originalText = '';
+    const audioPath = path.join(DOWNLOAD_DIR, `audio_${videoId}.mp3`);
+
+    try {
+        console.log(`${ts()} ▶ Transcriere START [${videoId}]`);
+
+        // 1. Subtitrări native (instant)
+        try {
+            console.log(`${ts()} 📝 Încerc subtitrări native...`);
+            await runYtDlp([...baseArgs(), '--write-auto-subs', '--sub-langs', 'ro,en', '--sub-format', 'vtt', '--skip-download', '-o', path.join(DOWNLOAD_DIR, `sub_${videoId}.%(ext)s`), url], { timeout: 30000 });
+            const subFile = ['ro', 'en'].map(l => path.join(DOWNLOAD_DIR, `sub_${videoId}.${l}.vtt`)).find(f => fs.existsSync(f));
+            if (subFile) {
+                const raw = fs.readFileSync(subFile, 'utf8');
+                const clean = raw.replace(/WEBVTT[\s\S]*?\n\n/, '').replace(/\d{2}:\d{2}:\d{2}\.\d{3} --> [\s\S]*?\n/g, '').replace(/<[^>]+>/g, '').replace(/\n{2,}/g, ' ').trim();
+                try { fs.unlinkSync(subFile); } catch (e) {}
+                if (clean.length > 50) { originalText = clean; console.log(`${ts()} ✅ Subtitrări OK (${elapsed(t0)}) · ${clean.length} chars`); }
+            }
+        } catch (subErr) { console.warn(`${ts()} ⚠️ Subtitrări fail: ${subErr.message.slice(0, 100)}`); }
+
+        // 2. Whisper dacă nu avem subtitrări
+        if (!originalText) {
+            console.log(`${ts()} 🎙 Fără subtitrări → Whisper...`);
+            await downloadAudio(url, audioPath);
+            const sizeMB = (fs.statSync(audioPath).size / 1024 / 1024).toFixed(2);
+            const t1 = Date.now();
+            console.log(`${ts()} 🧠 Whisper START (${sizeMB} MB)...`);
+            const transcription = await openai.audio.transcriptions.create({ file: fs.createReadStream(audioPath), model: 'whisper-1' });
+            originalText = transcription.text;
+            console.log(`${ts()} ✅ Whisper OK (${elapsed(t1)}) · ${originalText.length} chars`);
+        }
+
+    } catch (err) {
+        console.error(`${ts()} ❌ Transcriere fail (${elapsed(t0)}): ${err.message.slice(0, 200)}`);
+        return { original: 'Eroare la extragerea audio.', translated: 'Eroare tehnică.' };
+    } finally {
+        if (fs.existsSync(audioPath)) try { fs.unlinkSync(audioPath); } catch (e) {}
+    }
+
+    // 3. Traducere română
+    try {
+        const t1 = Date.now();
+        console.log(`${ts()} 🌍 Traducere română (GPT-4o-mini)...`);
+        const completion = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [
+                { role: 'system', content: 'Ești un traducător profesionist. Primești un text transcris dintr-un video YouTube. Traduce-l perfect, natural și cursiv în ROMÂNĂ. Dacă e deja în română, returnează-l exact. Returnează DOAR textul tradus, fără comentarii.' },
+                { role: 'user', content: originalText.substring(0, 10000) }
+            ],
+        });
+        const translatedText = completion.choices[0].message.content;
+        console.log(`${ts()} ✅ Traducere OK (${elapsed(t1)}) | total: ${elapsed(t0)}`);
+        return { original: originalText, translated: translatedText };
+    } catch (e) {
+        console.error(`${ts()} ❌ Traducere fail: ${e.message}`);
+        return { original: originalText, translated: 'Eroare la traducere: ' + e.message };
+    }
+};
+
+// ══════════════════════════════════════════════════════════════
+// ██ AI33 VOICE HELPERS
+// ══════════════════════════════════════════════════════════════
+function downloadVoiceFile(url, dest) {
     return new Promise((resolve, reject) => {
         const file = fs.createWriteStream(dest);
         https.get(url, (response) => {
             if (response.statusCode === 301 || response.statusCode === 302) {
                 file.close();
-                return downloadAudio(response.headers.location, dest).then(resolve).catch(reject);
+                return downloadVoiceFile(response.headers.location, dest).then(resolve).catch(reject);
             }
             response.pipe(file);
             file.on('finish', () => { file.close(); resolve(); });
@@ -110,447 +381,292 @@ function downloadAudio(url, dest) {
     });
 }
 
-// ══════════════════════════════════════════════════════════════
-// ██ HELPER — Polling task AI33
-// ══════════════════════════════════════════════════════════════
-async function pollTask(taskId, maxWait = 60000) {
-    const interval    = 3000;
+async function pollAI33Task(taskId, maxWait = 60000) {
+    const interval = 3000;
     const maxAttempts = Math.floor(maxWait / interval);
-
     for (let i = 0; i < maxAttempts; i++) {
         await new Promise(r => setTimeout(r, interval));
-        let response;
+        let resp;
         try {
-            response = await fetch(`${AI33_BASE_URL}/v1/task/${taskId}`, {
-                headers: { 'xi-api-key': AI33_API_KEY },
-                signal: AbortSignal.timeout(10000)
-            });
-        } catch (fetchErr) {
-            console.warn(`⚠️ Polling fetch error attempt ${i + 1}: ${fetchErr.message}`);
-            continue;
-        }
-
-        if (response.status === 503 || response.status === 502) {
-            console.warn(`⚠️ AI33 polling ${response.status}, attempt ${i + 1}, reîncercăm...`);
-            continue;
-        }
-        if (!response.ok) throw new Error(`Polling eșuat: ${response.status}`);
-
-        const task = await response.json();
-
+            resp = await fetch(`${AI33_BASE_URL}/v1/task/${taskId}`, { headers: { 'xi-api-key': AI33_API_KEY }, signal: AbortSignal.timeout(10000) });
+        } catch (e) { console.warn(`⚠️ AI33 poll ${i + 1}: ${e.message}`); continue; }
+        if (resp.status === 503 || resp.status === 502) { console.warn(`⚠️ AI33 poll ${resp.status} retry...`); continue; }
+        if (!resp.ok) throw new Error(`Polling fail: ${resp.status}`);
+        const task = await resp.json();
         if (task.status === 'done') {
             const audioUrl = task.metadata?.audio_url || task.output_uri || task.metadata?.output_uri;
-            if (!audioUrl) throw new Error("Task finalizat dar fără URL audio.");
+            if (!audioUrl) throw new Error('Task done dar fără URL audio.');
             return audioUrl;
         }
-        if (task.status === 'error' || task.status === 'failed') {
-            throw new Error(task.error_message || "Eroare la generarea vocii în AI33.");
-        }
-        // pending/processing — continuăm
+        if (task.status === 'error' || task.status === 'failed') throw new Error(task.error_message || 'Eroare AI33.');
     }
-    throw new Error("Timeout: generarea a durat prea mult (60s). Încearcă din nou.");
+    throw new Error('Timeout: generarea a durat prea mult (60s).');
 }
 
 // ══════════════════════════════════════════════════════════════
-// ██ 1. VOICE GENERATION  (cost: 2.5 credite + voice_characters)
+// ██ AUTH ROUTES
+// ══════════════════════════════════════════════════════════════
+app.post('/api/auth/google', async (req, res) => {
+    try {
+        const r = await fetch(`${process.env.HUB_URL}/api/auth/google`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req.body) });
+        res.status(r.status).json(await r.json());
+    } catch (e) { res.status(500).json({ error: 'Nu pot comunica cu serverul principal.' }); }
+});
+app.get('/api/auth/me', authenticate, (req, res) => res.json({ user: req.user }));
+
+// ══════════════════════════════════════════════════════════════
+// ██ PROCESARE YT
+// POST /api/process-yt  →  { url }
+// ══════════════════════════════════════════════════════════════
+app.post('/api/process-yt', authenticate, async (req, res) => {
+    const t0 = Date.now();
+    const { url } = req.body;
+    if (!url) return res.status(400).json({ error: 'URL lipsă' });
+
+    const parsed = sanitizeYouTubeUrl(url);
+    if (!parsed) return res.status(400).json({ error: 'Link YouTube invalid.' });
+
+    const { cleanUrl, videoId } = parsed;
+    const outputPath = path.join(DOWNLOAD_DIR, `${videoId}.mp4`);
+
+    console.log(`\n${ts()} ══════════════════════════════════`);
+    console.log(`${ts()} 📌 YT | ID: ${videoId} | ${cleanUrl}`);
+
+    let creditResult;
+    try {
+        const cached = await VideoCache.findOne({ videoId }).catch(() => null);
+        if (cached && fs.existsSync(outputPath) && fs.statSync(outputPath).size > 100 * 1024) {
+            console.log(`${ts()} ⚡ CACHE HIT: ${videoId}`);
+            const balance = await hubAPI.checkCredits(req.userId);
+            return res.json({ status: 'ok', downloadUrl: `/download/${videoId}.mp4`, originalText: cached.originalText, translatedText: cached.translatedText, creditsLeft: balance.credits });
+        }
+        if (fs.existsSync(outputPath)) try { fs.unlinkSync(outputPath); } catch (e) {}
+
+        try { creditResult = await hubAPI.useCredits(req.userId, 1); }
+        catch (e) { return res.status(403).json({ error: 'Nu mai ai credite! Cumpără un pachet.' }); }
+
+        console.log(`${ts()} ⏳ START paralel (video + transcriere)...`);
+        const [aiData] = await Promise.all([
+            getTranscriptAndTranslation(cleanUrl, videoId),
+            downloadVideo(cleanUrl, outputPath),
+        ]);
+        console.log(`${ts()} ✅ TOTAL YT: ${elapsed(t0)}`);
+
+        await VideoCache.create({ videoId, originalText: aiData.original, translatedText: aiData.translated }).catch(() => {});
+        res.json({ status: 'ok', downloadUrl: `/download/${videoId}.mp4`, originalText: aiData.original, translatedText: aiData.translated, creditsLeft: creditResult.credits });
+
+    } catch (e) {
+        console.error(`${ts()} ❌ YT FAIL [${videoId}] (${elapsed(t0)}): ${e.message.slice(0, 300)}`);
+        if (fs.existsSync(outputPath)) try { fs.unlinkSync(outputPath); } catch (e2) {}
+        if (creditResult) {
+            try {
+                const r = await fetch(`${process.env.HUB_URL}/api/internal/refund-credits`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-internal-key': process.env.INTERNAL_API_KEY },
+                    body: JSON.stringify({ userId: req.userId, amount: 1 }),
+                });
+                if (r.ok) { const rd = await r.json(); console.log(`${ts()} 🔄 Refund OK → credite: ${rd.credits}`); }
+            } catch (refErr) { console.error(`${ts()} ⚠️ Refund fail: ${refErr.message}`); }
+        }
+        res.status(500).json({ error: 'Serverul nu a putut procesa acest video. Încearcă alt link.' });
+    }
+});
+
+// ══════════════════════════════════════════════════════════════
+// ██ VOICE GENERATION — AI33 (ElevenLabs)
+// POST /api/generate  →  { text, voiceId, voice, stability, similarity_boost, speed }
 // ══════════════════════════════════════════════════════════════
 app.post('/api/generate', authenticate, async (req, res) => {
     try {
-        const { text, voice, stability, similarity_boost, speed } = req.body;
-        if (!text) return res.status(400).json({ error: "Script text lipsă." });
+        const { text, voiceId, voice, stability, similarity_boost, speed } = req.body;
+        if (!text) return res.status(400).json({ error: 'Text lipsă.' });
 
-        // Costul în caractere (fără spații)
-        const charCost = (text || '').replace(/\s+/g, '').length;
-
-        // Verificăm AMBELE: credite + voice_characters
+        const cost = text.replace(/\s+/g, '').length;
         const balance = await hubAPI.checkCredits(req.userId);
-        if (balance.credits < CREDIT_COST) {
-            return res.status(403).json({ error: `Cost: ${CREDIT_COST} Credite. Fonduri insuficiente.` });
-        }
-        if (balance.voice_characters < charCost) {
-            return res.status(403).json({ error: `Fonduri insuficiente. Ai nevoie de ${charCost} caractere voce.` });
+        if ((balance.voice_characters || 0) < cost) {
+            return res.status(403).json({ error: `Caractere insuficiente. Ai nevoie de ${cost}.` });
         }
 
-        const voiceId  = req.body.voiceId || VOICE_ID_MAP[voice] || VOICE_ID_MAP["Paul"];
-        const modelId  = "eleven_multilingual_v2";
+        const resolvedVoiceId = voiceId || 'nPczCjzI2devNBz1zQrb';
+        console.log(`${ts()} 🎙 Voice: ${voice || resolvedVoiceId} · ${cost} chars`);
 
-        console.log(`🎙️ [${new Date().toLocaleTimeString('ro-RO')}] Voice gen | user: ${req.userId} | voce: ${voice} (${voiceId}) | chars: ${charCost}`);
-
-        // Apel AI33 TTS
-        let ai33Response;
+        let ai33Resp;
         try {
-            ai33Response = await fetch(
-                `${AI33_BASE_URL}/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'xi-api-key': AI33_API_KEY },
-                    body: JSON.stringify({
-                        text,
-                        model_id: modelId,
-                        voice_settings: {
-                            stability:        parseFloat(stability)       || 0.5,
-                            similarity_boost: parseFloat(similarity_boost)|| 0.75,
-                            speed:            Math.min(1.2, Math.max(0.7, parseFloat(speed) || 1.0))
-                        },
-                        with_transcript: false
-                    }),
-                    signal: AbortSignal.timeout(15000)
-                }
-            );
+            ai33Resp = await fetch(`${AI33_BASE_URL}/v1/text-to-speech/${resolvedVoiceId}?output_format=mp3_44100_128`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'xi-api-key': AI33_API_KEY },
+                body: JSON.stringify({
+                    text, model_id: 'eleven_multilingual_v2',
+                    voice_settings: { stability: parseFloat(stability) || 0.5, similarity_boost: parseFloat(similarity_boost) || 0.75, speed: parseFloat(speed) || 1.0 },
+                    with_transcript: false,
+                }),
+                signal: AbortSignal.timeout(15000),
+            });
         } catch (fetchErr) {
             if (fetchErr.name === 'TimeoutError' || fetchErr.name === 'AbortError')
-                return res.status(503).json({ error: "Serverul nu răspunde. Încearcă din nou." });
+                return res.status(503).json({ error: 'Serverul de voce nu răspunde. Încearcă din nou.' });
             throw fetchErr;
         }
 
-        if (!ai33Response.ok) {
-            const errBody = await ai33Response.text();
-            console.error("Eroare AI33:", ai33Response.status, errBody);
-            if (ai33Response.status === 429) return res.status(429).json({ error: "Sistem suprasolicitat. Așteaptă câteva secunde." });
-            if (ai33Response.status === 503 || ai33Response.status === 502) return res.status(503).json({ error: "Serviciul de voce e indisponibil momentan." });
-            throw new Error(`AI33 eroare ${ai33Response.status}`);
+        if (!ai33Resp.ok) {
+            const errBody = await ai33Resp.text();
+            console.error(`${ts()} ❌ AI33 ${ai33Resp.status}:`, errBody.slice(0, 200));
+            if (ai33Resp.status === 429) return res.status(429).json({ error: 'Suprasolicitat. Așteaptă câteva secunde.' });
+            if (ai33Resp.status === 503 || ai33Resp.status === 502) return res.status(503).json({ error: 'Serviciul de voce indisponibil. Reîncearcă.' });
+            throw new Error(`AI33 eroare ${ai33Resp.status}`);
         }
 
-        const ai33Data = await ai33Response.json();
-        if (!ai33Data.success || !ai33Data.task_id) throw new Error("AI33 nu a returnat task_id valid.");
+        const ai33Data = await ai33Resp.json();
+        if (!ai33Data.success || !ai33Data.task_id) throw new Error('AI33 nu a returnat task_id.');
+        console.log(`${ts()} ✅ AI33 task: ${ai33Data.task_id}`);
 
-        const outputUrl = await pollTask(ai33Data.task_id);
-        const fileName  = `voice_${Date.now()}.mp3`;
-        const filePath  = path.join(DOWNLOAD_DIR, fileName);
-        await downloadAudio(outputUrl, filePath);
+        const outputUrl = await pollAI33Task(ai33Data.task_id);
+        const fileName = `voice_${Date.now()}.mp3`;
+        await downloadVoiceFile(outputUrl, path.join(DOWNLOAD_DIR, fileName));
 
-        // Scădem AMBELE: credite + caractere voce
-        let remaining = null;
-        try {
-            await hubAPI.useCredits(req.userId, CREDIT_COST);
-            const charResult = await hubAPI.useVoiceChars(req.userId, charCost);
-            remaining = charResult.voice_characters;
-        } catch (e) {
-            console.warn("Eroare la scăderea creditelor/chars:", e.message);
-        }
+        try { await hubAPI.useVoiceChars(req.userId, cost); } catch (e) { console.warn(`⚠️ useVoiceChars fail: ${e.message}`); }
 
-        res.json({ audioUrl: `/downloads/${fileName}`, remaining_chars: remaining });
+        console.log(`${ts()} ✅ Voice OK: ${fileName}`);
+        res.json({ audioUrl: `/download/${fileName}`, remaining_chars: (balance.voice_characters || 0) - cost });
 
     } catch (error) {
-        console.error("VOICE GEN ERROR:", error.message);
-        res.status(500).json({ error: error.message || "Eroare la generarea vocii." });
+        console.error(`${ts()} ❌ Voice fail:`, error.message);
+        res.status(500).json({ error: error.message || 'Eroare la generarea vocii.' });
     }
 });
 
 // ══════════════════════════════════════════════════════════════
-// ██ 2. DOWNLOAD VIDEO/AUDIO  (cost: 2.5 credite)
+// ██ SMART CUT — ffmpeg silence remove
+// POST /api/smart-cut  →  multipart: file, minSilence, threshold
 // ══════════════════════════════════════════════════════════════
-app.post('/api/download', authenticate, async (req, res) => {
-    try {
-        const { url, format = 'mp4', quality = 'best', transcript = false } = req.body;
-
-        if (!url || !url.startsWith('http')) {
-            return res.status(400).json({ error: 'Link invalid. Trimite un URL valid.' });
-        }
-
-        const balance = await hubAPI.checkCredits(req.userId);
-        if (balance.credits < CREDIT_COST) {
-            return res.status(403).json({ error: `Cost: ${CREDIT_COST} Credite. Fonduri insuficiente.` });
-        }
-
-        const videoId   = Date.now();
-        const baseName  = `video_${videoId}`;
-        const videoOut  = path.join(DOWNLOAD_DIR, `${baseName}.mp4`);
-        const audioOut  = path.join(DOWNLOAD_DIR, `${baseName}.mp3`);
-
-        let qualityFlag = '';
-        if (quality === 'best')  qualityFlag = '-f bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best';
-        else if (quality === '1080p') qualityFlag = '-f "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]"';
-        else if (quality === '720p')  qualityFlag = '-f "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]"';
-        else if (quality === '480p')  qualityFlag = '-f "bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480]"';
-        else qualityFlag = '-f best';
-
-        const result = { videoUrl: null, audioUrl: null, transcript: null };
-
-        // Descărcare video
-        if (format === 'mp4' || format === 'both') {
-            await new Promise((resolve, reject) => {
-                const proxyFlag = process.env.YT_PROXY ? `--proxy "${process.env.YT_PROXY}"` : '';
-                const cmd = `yt-dlp ${qualityFlag} --merge-output-format mp4 -o "${videoOut}" --no-warnings ${proxyFlag} "${url}"`;
-                exec(cmd, { timeout: 300000 }, (err, stdout, stderr) => {
-                    if (err) {
-                        console.error('yt-dlp video error:', stderr);
-                        return reject(new Error('Descărcarea video a eșuat. Verifică link-ul sau încearcă altă calitate.'));
-                    }
-                    result.videoUrl = `/downloads/${baseName}.mp4`;
-                    resolve();
-                });
-            });
-        }
-
-        // Descărcare audio
-        if (format === 'mp3' || format === 'both') {
-            await new Promise((resolve, reject) => {
-                const proxyFlag = process.env.YT_PROXY ? `--proxy "${process.env.YT_PROXY}"` : '';
-                const cmd = `yt-dlp -x --audio-format mp3 --audio-quality 0 -o "${audioOut}" --no-warnings ${proxyFlag} "${url}"`;
-                exec(cmd, { timeout: 300000 }, (err, stdout, stderr) => {
-                    if (err) {
-                        console.error('yt-dlp audio error:', stderr);
-                        return reject(new Error('Extragerea audio a eșuat.'));
-                    }
-                    result.audioUrl = `/downloads/${baseName}.mp3`;
-                    resolve();
-                });
-            });
-        }
-
-        // Transcript
-        if (transcript) {
-            try {
-                await new Promise((resolve) => {
-                    const proxyFlag = process.env.YT_PROXY ? `--proxy "${process.env.YT_PROXY}"` : '';
-                    const cmd = `yt-dlp --write-subs --write-auto-subs --sub-langs "ro,en,ro-RO,en-US" --skip-download --convert-subs vtt -o "${path.join(DOWNLOAD_DIR, baseName)}" --no-warnings ${proxyFlag} "${url}"`;
-                    exec(cmd, { timeout: 60000 }, () => resolve());
-                });
-
-                const files = fs.readdirSync(DOWNLOAD_DIR).filter(f => f.startsWith(baseName) && f.endsWith('.vtt'));
-                if (files.length > 0) {
-                    const vttContent = fs.readFileSync(path.join(DOWNLOAD_DIR, files[0]), 'utf8');
-                    result.transcript = vttContent
-                        .split('\n')
-                        .filter(l => l && !l.startsWith('WEBVTT') && !l.startsWith('NOTE') && !l.includes('-->') && !/^\d+$/.test(l.trim()))
-                        .map(l => l.replace(/<[^>]+>/g, '').trim())
-                        .filter(l => l.length > 0)
-                        .join(' ')
-                        .replace(/\s+/g, ' ')
-                        .trim();
-
-                    files.forEach(f => { try { fs.unlinkSync(path.join(DOWNLOAD_DIR, f)); } catch {} });
-                }
-            } catch (e) {
-                console.warn('Transcript error (non-fatal):', e.message);
-            }
-        }
-
-        const creditResult = await hubAPI.useCredits(req.userId, CREDIT_COST);
-        result.creditsLeft = creditResult.credits;
-
-        res.json({ status: 'ok', ...result });
-
-    } catch (e) {
-        console.error('DOWNLOAD ERROR:', e.message);
-        res.status(500).json({ error: e.message || 'Eroare la descărcare.' });
-    }
-});
-
-// ══════════════════════════════════════════════════════════════
-// ██ 3. SMART CUT — Eliminare silențe (FFmpeg)  (cost: 2.5 credite)
-// ══════════════════════════════════════════════════════════════
-app.post('/api/smart-cut', authenticate, upload.single('file'), async (req, res) => {
+app.post('/api/smart-cut', authenticate, uploadTmp.single('file'), async (req, res) => {
     try {
         const balance = await hubAPI.checkCredits(req.userId);
-        if (balance.credits < CREDIT_COST) {
+        if (balance.credits < 0.5) {
             if (req.file) fs.unlinkSync(req.file.path);
-            return res.status(403).json({ error: `Cost: ${CREDIT_COST} Credite. Fonduri insuficiente.` });
+            return res.status(403).json({ error: 'Cost: 0.5 Credite. Fonduri insuficiente.' });
         }
         if (!req.file) return res.status(400).json({ error: 'Fișier lipsă.' });
 
-        const inputFile  = req.file.path;
-        const outputFile = path.join(DOWNLOAD_DIR, `cut_${Date.now()}.mp3`);
-        const threshold  = req.body.threshold  || '-45dB';
+        const inputFile = req.file.path;
+        const outputFile = path.join(PROCESSED_DIR, `cut_${Date.now()}.mp3`);
+        const threshold = req.body.threshold || '-45dB';
         const minSilence = req.body.minSilence || '0.35';
+        const af = `silenceremove=start_periods=1:start_duration=0.1:start_threshold=${threshold}:stop_periods=-1:stop_duration=${minSilence}:stop_threshold=${threshold}`;
 
-        const audioFilter = `silenceremove=start_periods=1:start_duration=0.1:start_threshold=${threshold}:stop_periods=-1:stop_duration=${minSilence}:stop_threshold=${threshold}`;
-        const cmd = `ffmpeg -y -i "${inputFile}" -af "${audioFilter}" -c:a libmp3lame -q:a 2 "${outputFile}"`;
+        console.log(`${ts()} ✂️ Smart Cut (thresh: ${threshold}, min: ${minSilence}s)`);
 
-        exec(cmd, { timeout: 300000 }, async (err, stdout, stderr) => {
-            if (fs.existsSync(inputFile)) fs.unlinkSync(inputFile);
-            if (err) {
-                console.error("FFmpeg Smart Cut error:", stderr);
-                return res.status(500).json({ error: 'Eroare la procesarea audio.' });
-            }
+        exec(`ffmpeg -y -i "${inputFile}" -af "${af}" "${outputFile}"`, async (error) => {
+            if (fs.existsSync(inputFile)) try { fs.unlinkSync(inputFile); } catch (e) {}
+            if (error) { console.error(`${ts()} ❌ Smart Cut fail:`, error.message.slice(0, 200)); return res.status(500).json({ error: 'Eroare la procesarea audio.' }); }
+            console.log(`${ts()} ✅ Smart Cut OK: ${path.basename(outputFile)}`);
             try {
-                const result = await hubAPI.useCredits(req.userId, CREDIT_COST);
-                res.json({ status: 'ok', downloadUrl: `/downloads/${path.basename(outputFile)}`, creditsLeft: result.credits });
-            } catch {
-                res.json({ status: 'ok', downloadUrl: `/downloads/${path.basename(outputFile)}`, creditsLeft: 0 });
+                const result = await hubAPI.useCredits(req.userId, 0.5);
+                res.json({ status: 'ok', downloadUrl: `/download/${path.basename(outputFile)}`, creditsLeft: result.credits });
+            } catch (e) {
+                res.json({ status: 'ok', downloadUrl: `/download/${path.basename(outputFile)}`, creditsLeft: 0 });
             }
         });
     } catch (e) {
-        if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+        if (req.file && fs.existsSync(req.file.path)) try { fs.unlinkSync(req.file.path); } catch (e2) {}
         res.status(500).json({ error: e.message });
     }
 });
 
 // ══════════════════════════════════════════════════════════════
-// ██ 4. CAPTION REMOVER — Ștergere text video (FFmpeg delogo)  (cost: 2.5 credite)
+// ██ CAPTION REMOVER — ffmpeg delogo
+// POST /api/remove-caption  →  multipart: video, boxX, boxY, boxW, boxH (%)
 // ══════════════════════════════════════════════════════════════
-app.post('/api/remove-caption', authenticate, upload.single('video'), async (req, res) => {
+app.post('/api/remove-caption', authenticate, uploadTmp.single('video'), async (req, res) => {
     try {
         const balance = await hubAPI.checkCredits(req.userId);
-        if (balance.credits < CREDIT_COST) {
-            if (req.file) fs.unlinkSync(req.file.path);
-            return res.status(403).json({ error: `Cost: ${CREDIT_COST} Credite. Fonduri insuficiente.` });
+        if (balance.credits < 0.5) {
+            if (req.file) try { fs.unlinkSync(req.file.path); } catch (e) {}
+            return res.status(403).json({ error: 'Cost: 0.5 Credite. Fonduri insuficiente.' });
         }
-        if (!req.file) return res.status(400).json({ error: "Video lipsă." });
+        if (!req.file) return res.status(400).json({ error: 'Video lipsă.' });
 
-        // Scădem creditele IMEDIAT la upload, înainte de procesare
-        let creditsLeft = 0;
-        try {
-            const creditResult = await hubAPI.useCredits(req.userId, CREDIT_COST);
-            creditsLeft = creditResult.credits;
-        } catch (e) {
-            if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-            return res.status(500).json({ error: "Eroare la scăderea creditelor." });
-        }
-
-        const inputPath  = req.file.path;
-        const videoId    = Date.now();
+        const inputPath = req.file.path;
+        const videoId = Date.now();
         const outputPath = path.join(DOWNLOAD_DIR, `clean_${videoId}.mp4`);
 
-        const boxY = req.body.boxY !== undefined ? parseInt(req.body.boxY) : 70;
-        const boxH = req.body.boxH !== undefined ? parseInt(req.body.boxH) : 20;
-        const boxX = req.body.boxX !== undefined ? parseInt(req.body.boxX) : 10;
-        const boxW = req.body.boxW !== undefined ? parseInt(req.body.boxW) : 80;
+        const boxY = parseInt(req.body.boxY ?? 70);
+        const boxH = parseInt(req.body.boxH ?? 20);
+        const boxX = parseInt(req.body.boxX ?? 10);
+        const boxW = parseInt(req.body.boxW ?? 80);
+
+        console.log(`${ts()} 🎬 Caption Remover (x=${boxX}% y=${boxY}% w=${boxW}% h=${boxH}%)`);
 
         exec(`ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "${inputPath}"`, (probeErr, probeOut) => {
             if (probeErr) {
-                if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
-                return res.status(500).json({ error: "Eroare la analiza metadatelor." });
+                if (fs.existsSync(inputPath)) try { fs.unlinkSync(inputPath); } catch (e) {}
+                return res.status(500).json({ error: 'Eroare la analiza video.' });
             }
 
             const [width, height] = probeOut.trim().split('x').map(Number);
-            let pixelY = Math.floor((boxY / 100) * height);
-            let pixelH = Math.floor((boxH / 100) * height);
-            let pixelX = Math.floor((boxX / 100) * width);
-            let pixelW = Math.floor((boxW / 100) * width);
+            let pY = Math.max(2, Math.floor((boxY / 100) * height));
+            let pH = Math.max(2, Math.floor((boxH / 100) * height));
+            let pX = Math.max(2, Math.floor((boxX / 100) * width));
+            let pW = Math.max(2, Math.floor((boxW / 100) * width));
+            if (pY + pH > height - 2) pH = height - pY - 2;
+            if (pX + pW > width - 2) pW = width - pX - 2;
 
-            if (pixelY + pixelH > height - 2) pixelH = height - pixelY - 2;
-            if (pixelY < 2) pixelY = 2;
-            if (pixelH < 2) pixelH = 2;
-            if (pixelX + pixelW > width - 2) pixelW = width - pixelX - 2;
-            if (pixelX < 2) pixelX = 2;
-            if (pixelW < 2) pixelW = 2;
+            const cmd = `ffmpeg -y -i "${inputPath}" -vf "delogo=x=${pX}:y=${pY}:w=${pW}:h=${pH}" -map 0:v:0 -map 0:a? -c:v libx264 -preset ultrafast -crf 23 -c:a copy "${outputPath}"`;
 
-            const filterString   = `delogo=x=${pixelX}:y=${pixelY}:w=${pixelW}:h=${pixelH}`;
-            const ffmpegCommand  = `ffmpeg -y -i "${inputPath}" -vf "${filterString}" -map 0:v:0 -map 0:a? -c:v libx264 -preset ultrafast -crf 23 -c:a copy "${outputPath}"`;
-
-            exec(ffmpegCommand, { timeout: 600000 }, async (error, stdout, stderr) => {
-                if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+            exec(cmd, async (error, _stdout, stderr) => {
+                if (fs.existsSync(inputPath)) try { fs.unlinkSync(inputPath); } catch (e) {}
                 if (error) {
-                    console.error("FFMPEG ERROR:", stderr);
-                    return res.status(500).json({ error: "Eroare video. Încearcă o zonă puțin mai mică." });
+                    console.error(`${ts()} ❌ Caption Remover fail:`, stderr?.slice(0, 200));
+                    return res.status(500).json({ error: 'Eroare video. Încearcă o zonă puțin mai mică.' });
                 }
-                res.json({ status: 'ok', downloadUrl: `/downloads/clean_${videoId}.mp4`, creditsLeft });
+                console.log(`${ts()} ✅ Caption Remover OK: clean_${videoId}.mp4`);
+                try {
+                    const result = await hubAPI.useCredits(req.userId, 0.5);
+                    res.json({ status: 'ok', downloadUrl: `/download/clean_${videoId}.mp4`, creditsLeft: result.credits });
+                } catch (e) {
+                    res.json({ status: 'ok', downloadUrl: `/download/clean_${videoId}.mp4`, creditsLeft: 0 });
+                }
             });
         });
     } catch (e) {
-        if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+        if (req.file && fs.existsSync(req.file.path)) try { fs.unlinkSync(req.file.path); } catch (e2) {}
         res.status(500).json({ error: e.message });
     }
 });
 
 // ══════════════════════════════════════════════════════════════
-// ██ 5. WHISPER TRANSCRIBE  (fără cost extra — inclus în pipeline)
+// ██ DOWNLOAD FILE — caută în ambele foldere
 // ══════════════════════════════════════════════════════════════
-app.post('/api/transcribe', authenticate, upload.single('audio'), async (req, res) => {
-    if (!req.file) return res.status(400).json({ error: 'Fișier audio lipsă.' });
-    const inputPath = req.file.path;
-    try {
-        // Citim fișierul și îl trimitem ca FormData nativ (Node 18+, fără pachet extern)
-        const fileBuffer = fs.readFileSync(inputPath);
-        const { Blob } = require('buffer');
-        const blob = new Blob([fileBuffer], { type: 'audio/mpeg' });
-
-        const form = new FormData();
-        form.append('file', blob, 'audio.mp3');
-        form.append('model', 'whisper-1');
-        form.append('response_format', 'text');
-
-        const whisperRes = await fetch(`${AI33_BASE_URL}/v1/audio/transcriptions`, {
-            method: 'POST',
-            headers: { 'xi-api-key': AI33_API_KEY },
-            body: form,
-            signal: AbortSignal.timeout(120000)
-        });
-
-        if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
-
-        if (!whisperRes.ok) {
-            const err = await whisperRes.text();
-            console.error('Whisper error:', whisperRes.status, err);
-            return res.status(500).json({ error: `Whisper ${whisperRes.status}: ${err}` });
-        }
-
-        const text = await whisperRes.text();
-        console.log(`🎤 Whisper transcris: ${text.length} chars`);
-        res.json({ transcript: text.trim() });
-
-    } catch (e) {
-        if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
-        console.error('Transcribe error:', e.message);
-        res.status(500).json({ error: e.message || 'Eroare la transcriere.' });
+app.get('/download/:filename', (req, res) => {
+    const filename = path.basename(req.params.filename);
+    for (const dir of [DOWNLOAD_DIR, PROCESSED_DIR]) {
+        const filePath = path.resolve(dir, filename);
+        if (filePath.startsWith(dir) && fs.existsSync(filePath)) return res.download(filePath);
     }
+    res.status(404).send('Fișierul nu mai există sau a expirat.');
 });
 
 // ══════════════════════════════════════════════════════════════
-// ██ 6. TRADUCERE în română  (fără cost extra — inclus în pipeline)
-// ══════════════════════════════════════════════════════════════
-app.post('/api/translate', authenticate, async (req, res) => {
-    const { text } = req.body;
-    if (!text) return res.status(400).json({ error: 'Text lipsă.' });
-
-    try {
-        const translateRes = await fetch(`${AI33_BASE_URL}/v1/chat/completions`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'xi-api-key': AI33_API_KEY },
-            body: JSON.stringify({
-                model: 'gpt-4o-mini',
-                messages: [
-                    {
-                        role: 'system',
-                        content: 'Ești un traducător profesionist. Traduce textul primit în română naturală, păstrând tonul și stilul original. Returnează DOAR textul tradus, fără explicații, fără ghilimele, fără prefixe.'
-                    },
-                    { role: 'user', content: text }
-                ],
-                max_tokens: 4000,
-                temperature: 0.3
-            }),
-            signal: AbortSignal.timeout(30000)
-        });
-
-        if (!translateRes.ok) {
-            const err = await translateRes.text();
-            console.error('Translate error:', translateRes.status, err);
-            return res.status(500).json({ error: 'Traducerea a eșuat.' });
-        }
-
-        const data = await translateRes.json();
-        const translated = data.choices?.[0]?.message?.content?.trim();
-        if (!translated) return res.status(500).json({ error: 'Răspuns traducere invalid.' });
-
-        console.log(`🌍 Tradus: ${text.length} → ${translated.length} chars`);
-        res.json({ translated });
-
-    } catch (e) {
-        console.error('Translate error:', e.message);
-        res.status(500).json({ error: e.message || 'Eroare la traducere.' });
-    }
-});
-
-// ══════════════════════════════════════════════════════════════
-// ██ CURĂȚARE FIȘIERE VECHI (24h)
+// ██ CURĂȚARE AUTOMATĂ — 24h
 // ══════════════════════════════════════════════════════════════
 setInterval(() => {
-    fs.readdir(DOWNLOAD_DIR, (err, files) => {
-        if (err) return;
-        files.forEach(file => {
-            const filePath = path.join(DOWNLOAD_DIR, file);
-            fs.stat(filePath, (err, stats) => {
-                if (!err && (Date.now() - stats.mtimeMs > 86400000)) fs.unlink(filePath, () => {});
+    const now = Date.now();
+    const exts = ['.mp4', '.mp3', '.tmp', '.m4a', '.vtt'];
+    for (const dir of [DOWNLOAD_DIR, PROCESSED_DIR]) {
+        try {
+            fs.readdirSync(dir).forEach(file => {
+                if (exts.some(e => file.endsWith(e))) {
+                    const fp = path.join(dir, file);
+                    try { if (now - fs.statSync(fp).mtimeMs > 86400000) fs.unlinkSync(fp); } catch (e) {}
+                }
             });
-        });
-    });
+        } catch (e) { console.error('Eroare curățare:', e.message); }
+    }
 }, 3600000);
 
-// ══════════════════════════════════════════════════════════════
-// ██ SPA FALLBACK (Express v5 compatible)
-// ══════════════════════════════════════════════════════════════
-app.get('/{*path}', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'index.html')));
-
-app.listen(PORT, () => console.log(`🚀 Viralio Pipeline rulează pe portul ${PORT}!`));
+app.listen(PORT, () => {
+    console.log(`\n🚀 Viralio All-in-One · port ${PORT}`);
+    console.log(`   ✅ /api/process-yt    — YT Download + Transcriere Română`);
+    console.log(`   ✅ /api/generate      — Voice Generation (AI33/ElevenLabs)`);
+    console.log(`   ✅ /api/smart-cut     — Smart Cut (silence remove)`);
+    console.log(`   ✅ /api/remove-caption — Caption Remover (delogo)\n`);
+});
