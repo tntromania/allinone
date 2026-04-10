@@ -784,14 +784,19 @@ async function startPipeline() {
   let transcript = null;
 
   try {
+    // Dacă voice e activ, forțăm și mp3 pentru Whisper (fallback dacă nu vin subtitrările)
+    const dlFormat = document.getElementById('dl-format').value;
+    const needAudio = !skipVoice && !manualText;
+    const effectiveFormat = needAudio && dlFormat === 'mp4' ? 'both' : dlFormat;
+
     const dlRes = await fetch(`${API_BASE}/api/download`, {
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':`Bearer ${authToken}`},
       body: JSON.stringify({
         url,
-        format: document.getElementById('dl-format').value,
+        format: effectiveFormat,
         quality: document.getElementById('dl-quality').value,
-        transcript: wantTranscript && !manualText
+        transcript: !manualText  // întotdeauna încearcă subtitrările dacă nu e text manual
       })
     });
     const dlData = await dlRes.json();
@@ -823,16 +828,68 @@ async function startPipeline() {
 
   // ── STEP 2: VOICE ─────────────────────────────────────
   if (!skipVoice) {
-    const textToSpeak = manualText || transcript;
+    let textToSpeak = manualText || transcript;
+
+    // ── Dacă nu avem text → Whisper din audio descărcat ──
     if (!textToSpeak) {
-      setStep(2, 'error', 'Nicio sursă de text găsită');
-      setStepBody(2, `<div class="status-box status-warn"><span class="status-icon"><i class="fa-solid fa-triangle-exclamation"></i></span><span>Nu s-a găsit transcript și nu ai scris text manual. Bifează "Sari peste Voice" sau scrie un text.</span></div>`);
-      finishPipelineWithError('Voice-over sărit — nicio sursă de text.');
-      return;
+      const audioSrc = pipelineResults.audioUrl || pipelineResults.videoUrl;
+      if (!audioSrc) {
+        setStep(2, 'error', 'Nicio sursă de text sau audio');
+        setStepBody(2, `<div class="status-box status-error"><span class="status-icon"><i class="fa-solid fa-circle-xmark"></i></span><span>Nu s-a putut transcrie — niciun fișier audio disponibil.</span></div>`);
+        finishPipelineWithError('Voice-over sărit — nicio sursă de text.');
+        return;
+      }
+
+      setStep(2, 'active', 'Transcriere Whisper...');
+      setRibbon('Transcriere audio cu Whisper...', 'Step 2 · detectăm textul automat', 1, totalSteps);
+      setStepBody(2, `<div class="status-box status-info pulse"><span class="status-icon"><i class="fa-solid fa-microphone-lines"></i></span><span>Se transcrie audio cu Whisper AI... poate dura 30-60s</span></div>`);
+
+      try {
+        // Descarcă audio-ul ca blob și trimite la Whisper
+        const audioBlob = await fetch(audioSrc).then(r => r.blob());
+        const audioFile = new File([audioBlob], 'audio.mp3', { type: 'audio/mpeg' });
+        const formData = new FormData();
+        formData.append('audio', audioFile);
+
+        const wRes = await fetch(`${API_BASE}/api/transcribe`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}` },
+          body: formData
+        });
+        const wData = await wRes.json();
+        if (!wRes.ok) throw new Error(wData.error || 'Eroare Whisper');
+        textToSpeak = wData.transcript;
+        console.log('Whisper transcript:', textToSpeak?.substring(0, 100));
+      } catch(e) {
+        setStep(2, 'error', 'Transcriere eșuată: ' + e.message);
+        setStepBody(2, `<div class="status-box status-error"><span class="status-icon"><i class="fa-solid fa-circle-xmark"></i></span><span>Whisper: ${e.message}</span></div>`);
+        finishPipelineWithError('Transcrierea a eșuat.');
+        return;
+      }
+    }
+
+    // ── Traducere automată în română (dacă textul nu e deja în română) ──
+    setStep(2, 'active', 'Traducere în română...');
+    setRibbon('Traducere automată...', 'Step 2 · traducem textul în română', 1, totalSteps);
+    setStepBody(2, `<div class="status-box status-info pulse"><span class="status-icon"><i class="fa-solid fa-language"></i></span><span>Se traduce textul în română...</span></div>`);
+
+    try {
+      const tRes = await fetch(`${API_BASE}/api/translate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ text: textToSpeak })
+      });
+      const tData = await tRes.json();
+      if (!tRes.ok) throw new Error(tData.error || 'Eroare traducere');
+      textToSpeak = tData.translated;
+    } catch(e) {
+      // traducerea a eșuat — continuăm cu textul original
+      console.warn('Traducere eșuată (continuăm cu original):', e.message);
     }
 
     setStep(2, 'active', `Generare cu ${selectedVoice.name}...`);
     setRibbon(`Generare voce (${selectedVoice.name})...`, 'Step 2 din ' + totalSteps + ' · poate dura 30-60s', 1, totalSteps);
+    setStepBody(2, `<div class="status-box status-info pulse"><span class="status-icon"><i class="fa-solid fa-waveform-lines"></i></span><span>Se generează voice-over cu ${selectedVoice.name}...</span></div>`);
 
     try {
       const vRes = await fetch(`${API_BASE}/api/generate`, {
