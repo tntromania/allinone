@@ -40,7 +40,10 @@ const uploadTmp = multer({ dest: DOWNLOAD_DIR, limits: { fileSize: 500 * 1024 * 
 app.use(helmet({ contentSecurityPolicy: false, crossOriginOpenerPolicy: false, crossOriginEmbedderPolicy: false }));
 app.use(cors({ origin: '*' }));
 app.use(express.json({ limit: '10kb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+
+// FIX #6: assets si index.html direct langa server.js, nu in /public
+app.use(express.static(__dirname));
+
 app.use('/api/process-yt', rateLimit({ windowMs: 60 * 1000, max: 10, message: { error: 'Maxim 10 cereri pe minut.' } }));
 app.use('/api/auth/google', rateLimit({ windowMs: 15 * 60 * 1000, max: 20, message: { error: 'Prea multe încercări.' } }));
 
@@ -367,11 +370,14 @@ app.post('/api/generate', authenticate, async (req, res) => {
 
         const resolvedVoiceId = voiceId || 'nPczCjzI2devNBz1zQrb';
 
+        // FIX #4 server-side: clamp speed la 0.70–1.20 conform API
+        const clampedSpeed = Math.min(1.20, Math.max(0.70, parseFloat(speed) || 1.0));
+
         let ai33Resp;
         try {
             ai33Resp = await fetch(`${AI33_BASE_URL}/v1/text-to-speech/${resolvedVoiceId}?output_format=mp3_44100_128`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json', 'xi-api-key': AI33_API_KEY },
-                body: JSON.stringify({ text, model_id: 'eleven_multilingual_v2', voice_settings: { stability: parseFloat(stability)||0.5, similarity_boost: parseFloat(similarity_boost)||0.75, speed: parseFloat(speed)||1.0 }, with_transcript: false }),
+                body: JSON.stringify({ text, model_id: 'eleven_multilingual_v2', voice_settings: { stability: parseFloat(stability)||0.5, similarity_boost: parseFloat(similarity_boost)||0.75, speed: clampedSpeed }, with_transcript: false }),
                 signal: AbortSignal.timeout(15000),
             });
         } catch(fetchErr) {
@@ -450,4 +456,5 @@ app.listen(PORT, () => {
     console.log(`   ✅ /api/smart-cut   — Smart Cut (0.5 credite)`);
     console.log(`   ✅ /api/transcribe  — Whisper upload`);
     console.log(`   ✅ /api/translate   — Traducere GPT\n`);
+    console.log(`   📁 Static files     — servite din: ${__dirname}`);
 });
