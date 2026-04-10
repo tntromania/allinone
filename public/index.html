@@ -1,0 +1,1192 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Viralio Pipeline | All-in-One Studio</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<style>
+/* ═══════════════════════════════════════════════
+   VIRALIO PIPELINE — DESIGN SYSTEM
+═══════════════════════════════════════════════ */
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#080a14;
+  --surface:#0d0f1a;
+  --surface2:#12152b;
+  --border:rgba(255,255,255,0.07);
+  --border-active:rgba(99,102,241,0.45);
+  --indigo:#6366f1;
+  --indigo-dark:#4f46e5;
+  --pink:#ec4899;
+  --text:#f1f5f9;
+  --text-muted:#475569;
+  --text-dim:#334155;
+  --radius:1.25rem;
+}
+
+html,body{min-height:100vh;background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;overflow-x:hidden}
+
+/* — Noise overlay — */
+body::before{content:'';position:fixed;inset:0;opacity:.03;pointer-events:none;z-index:0;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size:200px 200px}
+
+/* — Ambient glows — */
+.glow-1{position:fixed;top:-200px;left:-200px;width:600px;height:600px;border-radius:50%;background:radial-gradient(circle,rgba(99,102,241,.12),transparent 70%);pointer-events:none;z-index:0}
+.glow-2{position:fixed;bottom:-200px;right:-100px;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle,rgba(236,72,153,.08),transparent 70%);pointer-events:none;z-index:0}
+
+/* — NAV — */
+nav{position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;
+  padding:1rem 2rem;border-bottom:1px solid var(--border);
+  background:rgba(8,10,20,.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+.nav-brand{display:flex;align-items:center;gap:.75rem;text-decoration:none}
+.nav-logo{width:2.5rem;height:2.5rem;border-radius:.75rem;
+  background:linear-gradient(135deg,var(--indigo-dark),var(--pink));
+  display:flex;align-items:center;justify-content:center;color:#fff;font-size:1rem;
+  box-shadow:0 6px 20px rgba(99,102,241,.4),inset 0 1px 0 rgba(255,255,255,.2)}
+.nav-title{font-family:'Syne',sans-serif;font-size:1.15rem;font-weight:800;color:var(--text);letter-spacing:-.02em}
+.nav-title span{color:var(--text-muted);font-weight:400;font-size:.8rem;margin-left:.5rem}
+
+/* user pill */
+#user-pill{display:none;align-items:center;gap:.6rem;
+  background:rgba(255,255,255,.04);border:1px solid var(--border);
+  border-radius:3rem;padding:.35rem .85rem .35rem .45rem}
+#user-pill img{width:2rem;height:2rem;border-radius:50%;border:1px solid var(--border)}
+#user-pill .uname{font-size:.78rem;font-weight:700;color:var(--text)}
+#user-pill .ucreds{font-size:.65rem;font-weight:700;color:var(--indigo)}
+.btn-logout{background:none;border:none;color:var(--text-muted);cursor:pointer;padding:.3rem;
+  border-radius:.4rem;transition:.2s;font-size:.8rem}
+.btn-logout:hover{color:#f87171;background:rgba(239,68,68,.1)}
+#login-btn{padding:.55rem 1.25rem;background:linear-gradient(135deg,var(--indigo-dark),var(--indigo));
+  color:#fff;border:none;border-radius:.75rem;cursor:pointer;font-weight:700;font-size:.85rem;
+  box-shadow:0 4px 14px rgba(99,102,241,.4);transition:.2s;font-family:'DM Sans',sans-serif}
+#login-btn:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(99,102,241,.5)}
+
+/* — PIPELINE STEPS — */
+.pipeline-header{max-width:900px;margin:3rem auto 2rem;text-align:center;position:relative;z-index:1;padding:0 1.5rem}
+.pipeline-title{font-family:'Syne',sans-serif;font-size:clamp(2rem,4vw,3rem);font-weight:800;
+  letter-spacing:-.04em;line-height:1.1;margin-bottom:.75rem}
+.pipeline-title .grad{background:linear-gradient(135deg,var(--indigo),var(--pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.pipeline-sub{color:var(--text-muted);font-size:1rem;font-weight:500}
+
+/* Steps indicator */
+.steps-bar{display:flex;align-items:center;justify-content:center;gap:0;max-width:700px;margin:2.5rem auto;position:relative;z-index:1;padding:0 1.5rem}
+.step-item{display:flex;flex-direction:column;align-items:center;gap:.5rem;flex:1}
+.step-circle{width:2.75rem;height:2.75rem;border-radius:50%;border:2px solid var(--border);
+  display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:800;
+  color:var(--text-dim);background:var(--surface);transition:.35s;position:relative;z-index:2;
+  font-family:'Syne',sans-serif}
+.step-circle.active{border-color:var(--indigo);color:var(--indigo);background:rgba(99,102,241,.12);
+  box-shadow:0 0 0 4px rgba(99,102,241,.15)}
+.step-circle.done{border-color:var(--indigo);background:var(--indigo);color:#fff;
+  box-shadow:0 4px 14px rgba(99,102,241,.4)}
+.step-label{font-size:.6rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;
+  letter-spacing:.06em;text-align:center;transition:.35s;font-family:'DM Sans',sans-serif}
+.step-label.active{color:var(--indigo)}
+.step-label.done{color:rgba(99,102,241,.7)}
+.step-connector{height:2px;flex:1;background:var(--border);transition:.35s;position:relative;top:-1.1rem}
+.step-connector.done{background:linear-gradient(90deg,var(--indigo),rgba(99,102,241,.3))}
+
+/* — PANELS — */
+.panels{max-width:900px;margin:0 auto 6rem;padding:0 1.5rem;position:relative;z-index:1}
+.panel{display:none;animation:panelIn .4s cubic-bezier(.16,1,.3,1) both}
+.panel.active{display:block}
+@keyframes panelIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+
+/* Card */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;
+  box-shadow:0 20px 60px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.04)}
+.card-header{padding:1.5rem 1.75rem 1.25rem;border-bottom:1px solid var(--border);
+  background:linear-gradient(180deg,rgba(99,102,241,.06),transparent);
+  display:flex;align-items:center;justify-content:space-between;position:relative}
+.card-header::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(99,102,241,.6),rgba(236,72,153,.4),transparent)}
+.card-icon{width:2.75rem;height:2.75rem;border-radius:.9rem;
+  background:linear-gradient(135deg,var(--indigo-dark),var(--pink));
+  display:flex;align-items:center;justify-content:center;color:#fff;font-size:1rem;flex-shrink:0;
+  box-shadow:0 6px 20px rgba(99,102,241,.4),inset 0 1px 0 rgba(255,255,255,.2)}
+.card-title{font-family:'Syne',sans-serif;font-size:1.1rem;font-weight:800;color:var(--text);letter-spacing:-.02em}
+.card-sub{font-size:.7rem;color:var(--text-muted);margin-top:.15rem}
+.card-body{padding:1.5rem 1.75rem}
+
+/* — INPUTS — */
+.field{display:flex;flex-direction:column;gap:.5rem;margin-bottom:1.25rem}
+.field label{font-size:.7rem;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em}
+.input-wrap{position:relative}
+.field input,.field textarea,.field select{
+  width:100%;padding:.85rem 1rem;background:rgba(255,255,255,.04);
+  border:1.5px solid var(--border);border-radius:.875rem;
+  font-size:.9rem;font-weight:500;color:var(--text);outline:none;
+  transition:.2s;font-family:'DM Sans',sans-serif;
+  -webkit-appearance:none}
+.field textarea{resize:vertical;min-height:120px;line-height:1.6}
+.field input:focus,.field textarea:focus,.field select:focus{
+  border-color:rgba(99,102,241,.5);background:rgba(99,102,241,.04);
+  box-shadow:0 0 0 3px rgba(99,102,241,.1)}
+.field input::placeholder,.field textarea::placeholder{color:var(--text-dim)}
+.field select option{background:#1e2035}
+
+/* icon input */
+.input-icon{position:absolute;left:1rem;top:50%;transform:translateY(-50%);color:var(--text-dim);font-size:.85rem;pointer-events:none}
+.input-icon+input{padding-left:2.75rem}
+
+/* — BUTTONS — */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;
+  padding:.8rem 1.5rem;border-radius:.875rem;font-weight:700;font-size:.9rem;
+  cursor:pointer;border:none;font-family:'DM Sans',sans-serif;transition:.2s}
+.btn-primary{background:linear-gradient(135deg,var(--indigo-dark),var(--indigo));color:#fff;
+  box-shadow:0 4px 14px rgba(99,102,241,.4)}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(99,102,241,.5)}
+.btn-primary:disabled{opacity:.5;transform:none;cursor:not-allowed}
+.btn-ghost{background:rgba(255,255,255,.04);color:var(--text-muted);border:1.5px solid var(--border)}
+.btn-ghost:hover{border-color:var(--border-active);color:var(--text);background:rgba(99,102,241,.06)}
+.btn-success{background:linear-gradient(135deg,#059669,#10b981);color:#fff;
+  box-shadow:0 4px 14px rgba(16,185,129,.3)}
+.btn-success:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(16,185,129,.4)}
+.btn-full{width:100%;margin-top:.5rem}
+.btn-sm{padding:.5rem 1rem;font-size:.8rem}
+
+/* — SLIDERS — */
+.slider-group{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:1.25rem}
+.slider-field{display:flex;flex-direction:column;gap:.5rem}
+.slider-field label{font-size:.68rem;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;
+  display:flex;justify-content:space-between}
+.slider-field label span{color:var(--indigo);font-size:.78rem}
+input[type=range]{-webkit-appearance:none;width:100%;height:4px;border-radius:99px;
+  background:rgba(255,255,255,.08);outline:none;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;
+  border-radius:50%;background:linear-gradient(135deg,var(--indigo),var(--pink));
+  box-shadow:0 2px 8px rgba(99,102,241,.5);cursor:pointer}
+
+/* — VOICE GRID — */
+.voice-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:.55rem;margin-bottom:1.25rem}
+.vcard{border:1.5px solid var(--border);border-radius:1rem;padding:.85rem .8rem .75rem;
+  cursor:pointer;background:rgba(255,255,255,.02);transition:.2s cubic-bezier(.16,1,.3,1);
+  position:relative;overflow:hidden;display:flex;flex-direction:column;gap:.4rem}
+.vcard:hover{border-color:rgba(99,102,241,.35);background:rgba(99,102,241,.07);transform:translateY(-2px);
+  box-shadow:0 8px 24px -6px rgba(99,102,241,.25)}
+.vcard.selected{border-color:var(--indigo)!important;background:rgba(99,102,241,.12)!important;
+  box-shadow:0 0 0 2px rgba(99,102,241,.3)!important}
+.vcard.selected::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,var(--indigo),var(--pink));border-radius:1rem 1rem 0 0}
+.vcard-top{display:flex;align-items:center;gap:.5rem}
+.vavatar{width:2.2rem;height:2.2rem;flex-shrink:0;border-radius:.7rem;
+  display:flex;align-items:center;justify-content:center;
+  font-size:.65rem;font-weight:900;color:#fff;position:relative;
+  box-shadow:0 4px 10px rgba(0,0,0,.4)}
+.vavatar::after{content:'';position:absolute;inset:0;border-radius:inherit;border:1px solid rgba(255,255,255,.2)}
+.vcard-name{font-size:.78rem;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vgender{font-size:.52rem;font-weight:700;padding:.12rem .4rem;border-radius:.35rem;
+  text-transform:uppercase;letter-spacing:.04em;display:inline-block;margin-top:.1rem}
+.vg-m{background:rgba(59,130,246,.15);color:#60a5fa}
+.vg-f{background:rgba(236,72,153,.15);color:#f472b6}
+.vg-s{background:rgba(245,158,11,.15);color:#fbbf24}
+.vcard-style{font-size:.58rem;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vcard-play{width:1.75rem;height:1.75rem;flex-shrink:0;border-radius:.5rem;
+  border:1.5px solid var(--border);background:rgba(255,255,255,.04);
+  display:flex;align-items:center;justify-content:center;
+  color:var(--text-muted);cursor:pointer;transition:.15s;font-size:.65rem}
+.vcard-play:hover{background:rgba(99,102,241,.2);border-color:rgba(99,102,241,.4);color:#a5b4fc}
+
+/* — STATUS — */
+.status-box{border-radius:.875rem;padding:1rem 1.25rem;display:flex;align-items:flex-start;gap:.75rem;
+  font-size:.82rem;font-weight:500;margin-bottom:1rem;border:1px solid}
+.status-info{background:rgba(99,102,241,.08);border-color:rgba(99,102,241,.2);color:#a5b4fc}
+.status-success{background:rgba(16,185,129,.08);border-color:rgba(16,185,129,.2);color:#6ee7b7}
+.status-error{background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.2);color:#fca5a5}
+.status-warn{background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.2);color:#fcd34d}
+.status-icon{font-size:1rem;flex-shrink:0;margin-top:.05rem}
+
+/* — RESULT CARD — */
+.result-card{background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.2);
+  border-radius:var(--radius);padding:1.25rem 1.5rem;margin-top:1rem}
+.result-card h4{font-family:'Syne',sans-serif;font-size:.85rem;font-weight:800;color:var(--text);margin-bottom:.75rem}
+.result-actions{display:flex;gap:.6rem;flex-wrap:wrap}
+audio{width:100%;margin-bottom:.75rem;border-radius:.6rem;filter:invert(1) hue-rotate(180deg);opacity:.85}
+
+/* — TRANSCRIPT AREA — */
+.transcript-box{background:rgba(255,255,255,.025);border:1px dashed rgba(255,255,255,.08);
+  border-radius:.875rem;padding:1.25rem;font-size:.82rem;color:var(--text-muted);
+  line-height:1.7;max-height:200px;overflow-y:auto;
+  scrollbar-width:thin;scrollbar-color:rgba(99,102,241,.3) transparent}
+.transcript-box::-webkit-scrollbar{width:3px}
+.transcript-box::-webkit-scrollbar-thumb{background:rgba(99,102,241,.3);border-radius:99px}
+
+/* — CAPTION CANVAS — */
+#cap-wrap{position:relative;display:inline-block;width:100%;max-width:100%}
+#cap-preview{max-width:100%;max-height:320px;border-radius:.875rem;display:block;border:1px solid var(--border)}
+#cap-box{position:absolute;border:2px solid var(--pink);background:rgba(236,72,153,.15);
+  cursor:move;border-radius:.35rem;user-select:none}
+.cap-handle{position:absolute;width:10px;height:10px;background:var(--pink);border-radius:50%;cursor:se-resize;bottom:-5px;right:-5px}
+
+/* — UPLOAD ZONE — */
+.upload-zone{border:2px dashed rgba(255,255,255,.1);border-radius:var(--radius);
+  padding:2.5rem 1.5rem;text-align:center;cursor:pointer;transition:.2s;
+  background:rgba(255,255,255,.02)}
+.upload-zone:hover,.upload-zone.drag{border-color:rgba(99,102,241,.5);background:rgba(99,102,241,.05)}
+.upload-zone-icon{font-size:2rem;color:var(--text-dim);margin-bottom:.75rem}
+.upload-zone-text{font-size:.85rem;color:var(--text-muted);font-weight:500}
+.upload-zone-sub{font-size:.72rem;color:var(--text-dim);margin-top:.35rem}
+input[type=file]{display:none}
+
+/* — PROGRESS — */
+.progress-bar{height:4px;background:rgba(255,255,255,.07);border-radius:99px;overflow:hidden;margin:.75rem 0}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--indigo),var(--pink));border-radius:99px;transition:width .3s ease}
+
+/* — DIVIDER ROW — */
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+@media(max-width:560px){.row2{grid-template-columns:1fr}}
+
+/* — BADGE — */
+.badge{font-size:.6rem;font-weight:800;padding:.15rem .5rem;border-radius:.4rem;
+  text-transform:uppercase;letter-spacing:.04em;font-family:'DM Sans',sans-serif}
+.badge-indigo{background:rgba(99,102,241,.15);color:#818cf8;border:1px solid rgba(99,102,241,.2)}
+.badge-pink{background:rgba(236,72,153,.15);color:#f472b6;border:1px solid rgba(236,72,153,.2)}
+.badge-green{background:rgba(16,185,129,.15);color:#6ee7b7;border:1px solid rgba(16,185,129,.2)}
+
+/* — PIPELINE FLOW — */
+.pipe-arrow{display:flex;align-items:center;justify-content:center;height:2.5rem;color:var(--text-dim);font-size:.9rem}
+
+/* — LOGIN MODAL — */
+#login-modal{display:none;position:fixed;inset:0;z-index:9999;
+  background:rgba(8,10,20,.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  align-items:center;justify-content:center}
+#login-modal.show{display:flex}
+.lm-card{background:var(--surface);border:1px solid var(--border);border-radius:1.5rem;
+  padding:2.5rem;text-align:center;max-width:380px;width:90%;
+  box-shadow:0 40px 100px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.06)}
+.lm-icon{width:4rem;height:4rem;border-radius:1.25rem;
+  background:linear-gradient(135deg,var(--indigo-dark),var(--pink));
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.5rem;color:#fff;margin:0 auto 1.25rem;
+  box-shadow:0 8px 24px rgba(99,102,241,.4)}
+.lm-title{font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;margin-bottom:.5rem}
+.lm-sub{font-size:.85rem;color:var(--text-muted);margin-bottom:1.75rem;line-height:1.6}
+
+/* — CHAR COUNTER — */
+.char-counter{display:flex;justify-content:flex-end;font-size:.65rem;color:var(--text-dim);margin-top:.3rem}
+.char-counter.warn{color:#fbbf24}
+.char-counter.over{color:#f87171}
+
+/* — SPINNER — */
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{display:inline-block;width:1rem;height:1rem;border:2px solid rgba(255,255,255,.2);
+  border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+
+/* — SECTION LABEL — */
+.sec-label{font-family:'Syne',sans-serif;font-size:.6rem;font-weight:800;color:var(--text-dim);
+  text-transform:uppercase;letter-spacing:.1em;margin-bottom:.65rem}
+</style>
+</head>
+<body>
+
+<div class="glow-1"></div>
+<div class="glow-2"></div>
+
+<!-- NAV -->
+<nav>
+  <a class="nav-brand" href="#">
+    <div class="nav-logo"><i class="fa-solid fa-bolt"></i></div>
+    <span class="nav-title">Viralio <span>Pipeline Studio</span></span>
+  </a>
+  <div style="display:flex;align-items:center;gap:.75rem">
+    <div id="user-pill">
+      <img id="nav-avatar" src="" alt="">
+      <div style="display:flex;flex-direction:column">
+        <span class="uname" id="nav-name"></span>
+        <span class="ucreds"><span id="nav-credits">0</span> Credite · <span id="nav-chars">0</span> chars</span>
+      </div>
+      <button class="btn-logout" onclick="logout()"><i class="fa-solid fa-power-off"></i></button>
+    </div>
+    <button id="login-btn" onclick="showLoginModal()"><i class="fa-brands fa-google" style="margin-right:.3rem"></i> Conectează-te</button>
+  </div>
+</nav>
+
+<!-- LOGIN MODAL -->
+<div id="login-modal">
+  <div class="lm-card">
+    <button onclick="hideLoginModal()" style="position:absolute;top:1rem;right:1rem;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.1rem"><i class="fa-solid fa-xmark"></i></button>
+    <div class="lm-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+    <h2 class="lm-title">Intră în cont</h2>
+    <p class="lm-sub">Conectează-te cu Google pentru a accesa toate funcționalitățile Pipeline Studio.</p>
+    <div style="display:flex;justify-content:center;background:rgba(255,255,255,.04);padding:1rem;border-radius:.875rem;border:1px solid var(--border)">
+      <div id="g_id_onload"
+           data-client_id="743541351685-br4h5r61n3ai28bbhm9blt34944rju8p.apps.googleusercontent.com"
+           data-context="signin" data-ux_mode="popup"
+           data-callback="handleCredentialResponse" data-auto_prompt="false"></div>
+      <div class="g_id_signin" data-type="standard" data-shape="rectangular"
+           data-theme="filled_black" data-text="signin_with" data-size="large"></div>
+    </div>
+  </div>
+</div>
+
+<!-- PIPELINE HEADER -->
+<div class="pipeline-header">
+  <h1 class="pipeline-title">All-in-One <span class="grad">Content Pipeline</span></h1>
+  <p class="pipeline-sub">Download → Voice → Smart Cut → Caption Remove · totul dintr-un singur loc</p>
+</div>
+
+<!-- STEPS BAR -->
+<div class="steps-bar">
+  <div class="step-item">
+    <div class="step-circle active" id="sc-1">1</div>
+    <div class="step-label active" id="sl-1">Download</div>
+  </div>
+  <div class="step-connector" id="conn-1"></div>
+  <div class="step-item">
+    <div class="step-circle" id="sc-2">2</div>
+    <div class="step-label" id="sl-2">Voice</div>
+  </div>
+  <div class="step-connector" id="conn-2"></div>
+  <div class="step-item">
+    <div class="step-circle" id="sc-3">3</div>
+    <div class="step-label" id="sl-3">Smart Cut</div>
+  </div>
+  <div class="step-connector" id="conn-3"></div>
+  <div class="step-item">
+    <div class="step-circle" id="sc-4">4</div>
+    <div class="step-label" id="sl-4">Captions</div>
+  </div>
+</div>
+
+<!-- PANELS -->
+<div class="panels">
+
+  <!-- ═══ PANEL 1: DOWNLOAD + TRANSCRIPT ═══ -->
+  <div class="panel active" id="panel-1">
+    <div class="card">
+      <div class="card-header">
+        <div style="display:flex;align-items:center;gap:.85rem">
+          <div class="card-icon"><i class="fa-solid fa-download"></i></div>
+          <div>
+            <div class="card-title">Download + Transcript</div>
+            <div class="card-sub">YouTube, TikTok, Facebook, Instagram · Cost: <strong style="color:var(--indigo)">1 Credit</strong></div>
+          </div>
+        </div>
+        <div class="badge badge-indigo">Step 1</div>
+      </div>
+      <div class="card-body">
+        <div class="field">
+          <label>Link video</label>
+          <div class="input-wrap">
+            <i class="fa-solid fa-link input-icon"></i>
+            <input type="url" id="yt-url" placeholder="https://youtube.com/watch?v=..." autocomplete="off">
+          </div>
+        </div>
+
+        <div class="row2">
+          <div class="field">
+            <label>Format</label>
+            <select id="dl-format">
+              <option value="mp4">📹 MP4 (Video + Audio)</option>
+              <option value="mp3">🎵 MP3 (Doar audio)</option>
+              <option value="both">📦 Ambele</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Calitate</label>
+            <select id="dl-quality">
+              <option value="best">⭐ Maximă</option>
+              <option value="1080p">1080p</option>
+              <option value="720p">720p</option>
+              <option value="480p">480p</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:1.25rem">
+          <input type="checkbox" id="dl-transcript" checked style="width:1rem;height:1rem;accent-color:var(--indigo);cursor:pointer">
+          <label for="dl-transcript" style="font-size:.82rem;color:var(--text-muted);cursor:pointer;font-weight:500">Extrage transcript automat (română / engleză)</label>
+        </div>
+
+        <div id="dl-status"></div>
+
+        <button class="btn btn-primary btn-full" id="btn-download" onclick="startDownload()">
+          <i class="fa-solid fa-bolt"></i> Descarcă & Procesează
+        </button>
+
+        <!-- Result -->
+        <div id="dl-result" style="display:none" class="result-card">
+          <h4><i class="fa-solid fa-circle-check" style="color:#6ee7b7;margin-right:.4rem"></i>Video procesat cu succes</h4>
+          <div id="dl-result-actions" class="result-actions"></div>
+          <div id="transcript-section" style="display:none;margin-top:1rem">
+            <div class="sec-label" style="margin-bottom:.5rem">📝 Transcript extras</div>
+            <div class="transcript-box" id="transcript-text"></div>
+            <button class="btn btn-ghost btn-sm" style="margin-top:.6rem" onclick="sendTranscriptToVoice()">
+              <i class="fa-solid fa-arrow-right"></i> Trimite la Voice Studio
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pipe-arrow"><i class="fa-solid fa-chevron-down"></i></div>
+    <div style="display:flex;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="goStep(2)">Mergi la Voice Studio <i class="fa-solid fa-arrow-right"></i></button>
+    </div>
+  </div>
+
+  <!-- ═══ PANEL 2: VOICE GENERATION ═══ -->
+  <div class="panel" id="panel-2">
+    <div class="card">
+      <div class="card-header">
+        <div style="display:flex;align-items:center;gap:.85rem">
+          <div class="card-icon"><i class="fa-solid fa-microphone-lines"></i></div>
+          <div>
+            <div class="card-title">Voice Studio</div>
+            <div class="card-sub">Alege vocea · Costul se calculează per caracter</div>
+          </div>
+        </div>
+        <div class="badge badge-pink">Step 2</div>
+      </div>
+      <div class="card-body">
+
+        <!-- VOICE GRID — Top 10 -->
+        <div class="sec-label">Alege vocea</div>
+        <div class="voice-grid" id="voice-grid"></div>
+
+        <!-- TEXT -->
+        <div class="field">
+          <label>Script text</label>
+          <textarea id="voice-text" placeholder="Scrie sau lipește textul pentru voice-over..." oninput="updateCharCount()"></textarea>
+          <div class="char-counter" id="char-counter">0 caractere (fără spații)</div>
+        </div>
+
+        <!-- SETTINGS -->
+        <div class="slider-group">
+          <div class="slider-field">
+            <label>Stabilitate <span id="val-stability">0.50</span></label>
+            <input type="range" id="sl-stability" min="0" max="1" step="0.01" value="0.5" oninput="document.getElementById('val-stability').textContent=parseFloat(this.value).toFixed(2)">
+          </div>
+          <div class="slider-field">
+            <label>Claritate <span id="val-similarity">0.75</span></label>
+            <input type="range" id="sl-similarity" min="0" max="1" step="0.01" value="0.75" oninput="document.getElementById('val-similarity').textContent=parseFloat(this.value).toFixed(2)">
+          </div>
+          <div class="slider-field">
+            <label>Viteză <span id="val-speed">1.00</span></label>
+            <input type="range" id="sl-speed" min="0.7" max="1.3" step="0.05" value="1.0" oninput="document.getElementById('val-speed').textContent=parseFloat(this.value).toFixed(2)">
+          </div>
+        </div>
+
+        <div id="voice-status"></div>
+
+        <button class="btn btn-primary btn-full" id="btn-voice" onclick="generateVoice()">
+          <i class="fa-solid fa-waveform-lines"></i> Generează Voce
+        </button>
+
+        <!-- Result -->
+        <div id="voice-result" style="display:none" class="result-card">
+          <h4><i class="fa-solid fa-circle-check" style="color:#6ee7b7;margin-right:.4rem"></i>Voce generată · <span id="voice-chars-left"></span> chars rămase</h4>
+          <audio id="voice-player" controls></audio>
+          <div class="result-actions">
+            <a id="voice-dl-link" class="btn btn-ghost btn-sm" download><i class="fa-solid fa-download"></i> Descarcă MP3</a>
+            <button class="btn btn-success btn-sm" onclick="sendAudioToSmartCut()"><i class="fa-solid fa-scissors"></i> Trimite la Smart Cut</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pipe-arrow"><i class="fa-solid fa-chevron-down"></i></div>
+    <div style="display:flex;justify-content:space-between">
+      <button class="btn btn-ghost" onclick="goStep(1)"><i class="fa-solid fa-arrow-left"></i> Înapoi</button>
+      <button class="btn btn-ghost" onclick="goStep(3)">Mergi la Smart Cut <i class="fa-solid fa-arrow-right"></i></button>
+    </div>
+  </div>
+
+  <!-- ═══ PANEL 3: SMART CUT ═══ -->
+  <div class="panel" id="panel-3">
+    <div class="card">
+      <div class="card-header">
+        <div style="display:flex;align-items:center;gap:.85rem">
+          <div class="card-icon"><i class="fa-solid fa-scissors"></i></div>
+          <div>
+            <div class="card-title">Audio Smart Cut</div>
+            <div class="card-sub">Elimină pauzele și spațiile moarte · Cost: <strong style="color:var(--indigo)">0.5 Credite</strong></div>
+          </div>
+        </div>
+        <div class="badge badge-indigo">Step 3</div>
+      </div>
+      <div class="card-body">
+
+        <!-- Upload or auto-filled -->
+        <div id="cut-upload-zone" class="upload-zone" onclick="document.getElementById('cut-file-input').click()"
+             ondragover="this.classList.add('drag');event.preventDefault()"
+             ondragleave="this.classList.remove('drag')"
+             ondrop="handleCutDrop(event)">
+          <input type="file" id="cut-file-input" accept="audio/*,video/*" onchange="handleCutFile(this.files[0])">
+          <div class="upload-zone-icon"><i class="fa-solid fa-music"></i></div>
+          <div class="upload-zone-text">Trage fișierul audio sau click pentru a încărca</div>
+          <div class="upload-zone-sub">MP3, WAV, M4A, MP4 · Max 500MB</div>
+        </div>
+
+        <div id="cut-file-info" style="display:none;margin-top:.75rem" class="status-box status-info">
+          <span class="status-icon"><i class="fa-solid fa-file-audio"></i></span>
+          <span id="cut-file-name">—</span>
+        </div>
+
+        <!-- Settings -->
+        <div style="margin-top:1.25rem" class="slider-group">
+          <div class="slider-field">
+            <label>Pauza minimă (s) <span id="val-silence">0.35</span></label>
+            <input type="range" id="sl-silence" min="0.1" max="2" step="0.05" value="0.35"
+              oninput="document.getElementById('val-silence').textContent=parseFloat(this.value).toFixed(2)">
+          </div>
+          <div class="slider-field">
+            <label>Prag detectie<span id="val-thresh"></span></label>
+            <select id="sl-thresh" style="margin-top:.3rem;padding:.5rem .75rem;background:rgba(255,255,255,.04);border:1.5px solid var(--border);border-radius:.65rem;color:var(--text);font-family:'DM Sans',sans-serif;font-size:.8rem;width:100%">
+              <option value="-45dB">-45dB (recomandat)</option>
+              <option value="-40dB">-40dB (agresiv)</option>
+              <option value="-50dB">-50dB (blând)</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="cut-status"></div>
+
+        <button class="btn btn-primary btn-full" id="btn-cut" onclick="runSmartCut()">
+          <i class="fa-solid fa-scissors"></i> Rulează Smart Cut
+        </button>
+
+        <!-- Result -->
+        <div id="cut-result" style="display:none" class="result-card">
+          <h4><i class="fa-solid fa-circle-check" style="color:#6ee7b7;margin-right:.4rem"></i>Audio procesat · <span id="cut-credits-left"></span> credite rămase</h4>
+          <audio id="cut-player" controls></audio>
+          <div class="result-actions">
+            <a id="cut-dl-link" class="btn btn-ghost btn-sm" download><i class="fa-solid fa-download"></i> Descarcă</a>
+            <button class="btn btn-success btn-sm" onclick="goStep(4)"><i class="fa-solid fa-closed-captioning"></i> Mergi la Captions</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pipe-arrow"><i class="fa-solid fa-chevron-down"></i></div>
+    <div style="display:flex;justify-content:space-between">
+      <button class="btn btn-ghost" onclick="goStep(2)"><i class="fa-solid fa-arrow-left"></i> Înapoi</button>
+      <button class="btn btn-ghost" onclick="goStep(4)">Mergi la Captions <i class="fa-solid fa-arrow-right"></i></button>
+    </div>
+  </div>
+
+  <!-- ═══ PANEL 4: CAPTION REMOVER ═══ -->
+  <div class="panel" id="panel-4">
+    <div class="card">
+      <div class="card-header">
+        <div style="display:flex;align-items:center;gap:.85rem">
+          <div class="card-icon"><i class="fa-solid fa-closed-captioning"></i></div>
+          <div>
+            <div class="card-title">Caption Remover</div>
+            <div class="card-sub">Selectează zona textului pe video · Cost: <strong style="color:var(--indigo)">0.5 Credite</strong></div>
+          </div>
+        </div>
+        <div class="badge badge-green">Step 4</div>
+      </div>
+      <div class="card-body">
+
+        <!-- Upload -->
+        <div id="cap-upload-zone" class="upload-zone" onclick="document.getElementById('cap-file-input').click()"
+             ondragover="this.classList.add('drag');event.preventDefault()"
+             ondragleave="this.classList.remove('drag')"
+             ondrop="handleCapDrop(event)">
+          <input type="file" id="cap-file-input" accept="video/*" onchange="handleCapFile(this.files[0])">
+          <div class="upload-zone-icon"><i class="fa-solid fa-film"></i></div>
+          <div class="upload-zone-text">Trage videoclipul sau click pentru a încărca</div>
+          <div class="upload-zone-sub">MP4, MOV, AVI · Max 500MB</div>
+        </div>
+
+        <!-- Canvas preview -->
+        <div id="cap-editor" style="display:none;margin-top:1.25rem">
+          <div class="sec-label" style="margin-bottom:.75rem">🎯 Trage dreptunghiul peste zona cu text</div>
+          <div style="position:relative;display:inline-block;width:100%;border-radius:.875rem;overflow:hidden;border:1px solid var(--border)">
+            <video id="cap-video" style="max-width:100%;max-height:320px;display:block;border-radius:.875rem" muted playsinline></video>
+            <canvas id="cap-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;cursor:crosshair;border-radius:.875rem"></canvas>
+          </div>
+
+          <!-- Box coords display -->
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.6rem;margin-top:1rem">
+            <div class="field" style="margin-bottom:0">
+              <label>Y% (sus)</label>
+              <input type="number" id="cap-y" min="0" max="95" value="70" oninput="syncBoxFromInputs()">
+            </div>
+            <div class="field" style="margin-bottom:0">
+              <label>H% (înălțime)</label>
+              <input type="number" id="cap-h" min="2" max="50" value="15" oninput="syncBoxFromInputs()">
+            </div>
+            <div class="field" style="margin-bottom:0">
+              <label>X% (stânga)</label>
+              <input type="number" id="cap-x" min="0" max="95" value="5" oninput="syncBoxFromInputs()">
+            </div>
+            <div class="field" style="margin-bottom:0">
+              <label>W% (lățime)</label>
+              <input type="number" id="cap-w" min="2" max="100" value="90" oninput="syncBoxFromInputs()">
+            </div>
+          </div>
+          <p style="font-size:.72rem;color:var(--text-dim);margin-top:.5rem"><i class="fa-solid fa-circle-info" style="margin-right:.3rem"></i>Desenează direct pe video cu mouse-ul, sau ajustează manual valorile de mai sus</p>
+        </div>
+
+        <div id="cap-status" style="margin-top:.75rem"></div>
+
+        <button class="btn btn-primary btn-full" id="btn-cap" onclick="runCaptionRemover()" style="margin-top:1rem">
+          <i class="fa-solid fa-eraser"></i> Elimină Captionul
+        </button>
+
+        <!-- Result -->
+        <div id="cap-result" style="display:none" class="result-card">
+          <h4><i class="fa-solid fa-circle-check" style="color:#6ee7b7;margin-right:.4rem"></i>Video procesat! <span id="cap-credits-left"></span> credite rămase</h4>
+          <div class="result-actions">
+            <a id="cap-dl-link" class="btn btn-success" download><i class="fa-solid fa-download"></i> Descarcă Video Fără Captions</a>
+          </div>
+          <div class="status-box status-success" style="margin-top:1rem">
+            <span class="status-icon">🎉</span>
+            <span>Pipeline complet! Conținutul tău este gata de publicat.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;justify-content:flex-start;margin-top:1rem">
+      <button class="btn btn-ghost" onclick="goStep(3)"><i class="fa-solid fa-arrow-left"></i> Înapoi</button>
+    </div>
+  </div>
+
+</div><!-- /panels -->
+
+<script>
+/* ═══════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════ */
+let currentStep = 1;
+let authToken = localStorage.getItem('viralio_token');
+let currentUser = null;
+let downloadedVideoPath = null;
+let generatedAudioBlob = null;
+let generatedAudioUrl = null;
+let cutAudioFile = null;
+let capVideoFile = null;
+let selectedVoice = null;
+
+const API_BASE = window.location.origin; // same origin
+
+/* ═══════════════════════════════════════════
+   TOP 10 VOICES (including Liam)
+═══════════════════════════════════════════ */
+const TOP_VOICES = [
+  {id:"TX3LPaxmHKxFdv7VOQHJ", name:"Liam",     style:"social media · energetic",  gender:"male",   accent:"american", color:"#6366f1"},
+  {id:"CwhRBWXzGAHq8TQ4Fs17", name:"Roger",    style:"conversational · classy",   gender:"male",   accent:"american", color:"#6366f1"},
+  {id:"JBFqnCBsd6RMkjVDRZzb", name:"George",   style:"british · narrative",       gender:"male",   accent:"british",  color:"#0ea5e9"},
+  {id:"9BWtsMINqrJLrRacOk9x", name:"Aria",     style:"social media · expressive", gender:"female", accent:"american", color:"#ec4899"},
+  {id:"IKne3meq5aSn9XLyUdCD", name:"Charlie",  style:"australian · hyped",        gender:"male",   accent:"australian",color:"#10b981"},
+  {id:"EXAVITQu4vr4xnSDxMaL", name:"Sarah",    style:"entertainment · pro",       gender:"female", accent:"american", color:"#ec4899"},
+  {id:"N2lVS1w4EtoT3dr4eOWO", name:"Callum",   style:"animation · characters",    gender:"male",   accent:"american", color:"#6366f1"},
+  {id:"FGY2WhTYpPnrIDTdsKH5", name:"Laura",    style:"social media · sassy",      gender:"female", accent:"american", color:"#f472b6"},
+  {id:"SAz9YHcvj6GT2YYXdXww", name:"River",    style:"conversational · calm",     gender:"special",accent:"american", color:"#f59e0b"},
+  {id:"onwK4e9ZLuTAKqWW03F9", name:"Reginald", style:"british · authoritative",   gender:"male",   accent:"british",  color:"#0ea5e9"},
+];
+
+/* ═══════════════════════════════════════════
+   AUTH
+═══════════════════════════════════════════ */
+async function handleCredentialResponse(response) {
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/google`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({credential: response.credential})
+    });
+    const data = await res.json();
+    if (data.token) {
+      authToken = data.token;
+      localStorage.setItem('viralio_token', authToken);
+      currentUser = data.user;
+      updateUserUI();
+      hideLoginModal();
+    }
+  } catch(e){ showStatus('dl-status','error','Eroare la autentificare.') }
+}
+
+async function fetchMe() {
+  if (!authToken) return;
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/me`, {headers:{Authorization:`Bearer ${authToken}`}});
+    if (!res.ok) { authToken = null; localStorage.removeItem('viralio_token'); return; }
+    const data = await res.json();
+    currentUser = data.user;
+    updateUserUI();
+  } catch(e){}
+}
+
+function updateUserUI() {
+  if (!currentUser) return;
+  document.getElementById('user-pill').style.display = 'flex';
+  document.getElementById('login-btn').style.display = 'none';
+  document.getElementById('nav-avatar').src = currentUser.picture || '';
+  document.getElementById('nav-name').textContent = currentUser.name?.split(' ')[0] || '';
+  document.getElementById('nav-credits').textContent = (currentUser.credits || 0).toFixed(1);
+  document.getElementById('nav-chars').textContent = (currentUser.voice_characters || 0).toLocaleString();
+}
+
+function logout() {
+  authToken = null; currentUser = null;
+  localStorage.removeItem('viralio_token');
+  document.getElementById('user-pill').style.display = 'none';
+  document.getElementById('login-btn').style.display = '';
+}
+
+function requireAuth() {
+  if (!authToken) { showLoginModal(); return false; }
+  return true;
+}
+
+function showLoginModal(){ document.getElementById('login-modal').classList.add('show') }
+function hideLoginModal(){ document.getElementById('login-modal').classList.remove('show') }
+
+/* ═══════════════════════════════════════════
+   STEP NAVIGATION
+═══════════════════════════════════════════ */
+function goStep(n) {
+  // Mark done
+  for (let i=1;i<=4;i++) {
+    const sc = document.getElementById(`sc-${i}`);
+    const sl = document.getElementById(`sl-${i}`);
+    sc.classList.remove('active','done');
+    sl.classList.remove('active','done');
+    if (i < n) { sc.classList.add('done'); sc.innerHTML='<i class="fa-solid fa-check" style="font-size:.7rem"></i>'; sl.classList.add('done'); }
+    else if (i===n) { sc.classList.add('active'); sc.textContent=i; sl.classList.add('active'); }
+    else { sc.textContent=i; }
+    if (i<4) {
+      const conn = document.getElementById(`conn-${i}`);
+      conn.classList.toggle('done', i<n);
+    }
+  }
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById(`panel-${n}`).classList.add('active');
+  currentStep = n;
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+/* ═══════════════════════════════════════════
+   STATUS HELPER
+═══════════════════════════════════════════ */
+function showStatus(id, type, msg) {
+  const icons={info:'fa-circle-info',success:'fa-circle-check',error:'fa-circle-xmark',warn:'fa-triangle-exclamation'};
+  document.getElementById(id).innerHTML = `
+    <div class="status-box status-${type}">
+      <span class="status-icon"><i class="fa-solid ${icons[type]||icons.info}"></i></span>
+      <span>${msg}</span>
+    </div>`;
+}
+function clearStatus(id){ document.getElementById(id).innerHTML=''; }
+
+/* ═══════════════════════════════════════════
+   PANEL 1: DOWNLOAD
+═══════════════════════════════════════════ */
+async function startDownload() {
+  if (!requireAuth()) return;
+  const url = document.getElementById('yt-url').value.trim();
+  if (!url) { showStatus('dl-status','warn','Introduceți un link valid.'); return; }
+
+  const btn = document.getElementById('btn-download');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Procesare...';
+  showStatus('dl-status','info','Se descarcă și procesează videoclipul...');
+
+  try {
+    const res = await fetch(`${API_BASE}/api/download`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${authToken}`},
+      body: JSON.stringify({
+        url, format: document.getElementById('dl-format').value,
+        quality: document.getElementById('dl-quality').value,
+        transcript: document.getElementById('dl-transcript').checked
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Eroare server');
+
+    clearStatus('dl-status');
+    const resultDiv = document.getElementById('dl-result');
+    resultDiv.style.display = 'block';
+
+    // Build action buttons
+    let actions = '';
+    if (data.videoUrl) {
+      downloadedVideoPath = data.videoUrl;
+      actions += `<a href="${data.videoUrl}" class="btn btn-ghost btn-sm" download><i class="fa-solid fa-film"></i> Video MP4</a>`;
+    }
+    if (data.audioUrl) {
+      actions += `<a href="${data.audioUrl}" class="btn btn-ghost btn-sm" download><i class="fa-solid fa-music"></i> Audio MP3</a>`;
+    }
+    actions += `<button class="btn btn-success btn-sm" onclick="goStep(2)"><i class="fa-solid fa-arrow-right"></i> Continuă la Voice</button>`;
+    document.getElementById('dl-result-actions').innerHTML = actions;
+
+    // Transcript
+    if (data.transcript) {
+      document.getElementById('transcript-section').style.display = 'block';
+      document.getElementById('transcript-text').textContent = data.transcript;
+    }
+
+    // Update credits
+    if (data.creditsLeft !== undefined) {
+      document.getElementById('nav-credits').textContent = parseFloat(data.creditsLeft).toFixed(1);
+    }
+
+  } catch(e) {
+    showStatus('dl-status','error', e.message || 'Eroare la descărcare.');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-bolt"></i> Descarcă & Procesează';
+  }
+}
+
+function sendTranscriptToVoice() {
+  const t = document.getElementById('transcript-text').textContent;
+  document.getElementById('voice-text').value = t;
+  updateCharCount();
+  goStep(2);
+}
+
+/* ═══════════════════════════════════════════
+   PANEL 2: VOICE GENERATION
+═══════════════════════════════════════════ */
+function buildVoiceGrid() {
+  const grid = document.getElementById('voice-grid');
+  grid.innerHTML = TOP_VOICES.map((v,i) => {
+    const initials = v.name.slice(0,2).toUpperCase();
+    const gClass = v.gender==='female'?'vg-f':v.gender==='special'?'vg-s':'vg-m';
+    const gLabel = v.gender==='female'?'F':v.gender==='special'?'S':'M';
+    return `
+    <div class="vcard" id="vc-${i}" onclick="selectVoice(${i})">
+      <div class="vcard-top">
+        <div class="vavatar" style="background:linear-gradient(135deg,${v.color},${v.color}99)">${initials}</div>
+        <div style="flex:1;min-width:0">
+          <div class="vcard-name">${v.name}${v.name==='Liam'?' ⭐':''}</div>
+          <span class="vgender ${gClass}">${gLabel} · ${v.accent}</span>
+        </div>
+      </div>
+      <div class="vcard-style">${v.style}</div>
+    </div>`;
+  }).join('');
+  // Default select Liam
+  selectVoice(0);
+}
+
+function selectVoice(idx) {
+  document.querySelectorAll('.vcard').forEach(c=>c.classList.remove('selected'));
+  document.getElementById(`vc-${idx}`).classList.add('selected');
+  selectedVoice = TOP_VOICES[idx];
+}
+
+function updateCharCount() {
+  const text = document.getElementById('voice-text').value;
+  const count = text.replace(/\s+/g,'').length;
+  const el = document.getElementById('char-counter');
+  el.textContent = `${count} caractere (fără spații)`;
+  el.className = 'char-counter' + (count>2500?' warn':'') + (count>3000?' over':'');
+}
+
+async function generateVoice() {
+  if (!requireAuth()) return;
+  if (!selectedVoice) { showStatus('voice-status','warn','Selectează o voce.'); return; }
+  const text = document.getElementById('voice-text').value.trim();
+  if (!text) { showStatus('voice-status','warn','Scrie sau lipește un text.'); return; }
+
+  const btn = document.getElementById('btn-voice');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Generare voce...';
+  showStatus('voice-status','info','Se generează audio, poate dura câteva secunde...');
+
+  try {
+    const res = await fetch(`${API_BASE}/api/generate`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${authToken}`},
+      body: JSON.stringify({
+        text, voice: selectedVoice.name, voiceId: selectedVoice.id,
+        stability: parseFloat(document.getElementById('sl-stability').value),
+        similarity_boost: parseFloat(document.getElementById('sl-similarity').value),
+        speed: parseFloat(document.getElementById('sl-speed').value)
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Eroare server');
+
+    clearStatus('voice-status');
+    generatedAudioUrl = data.audioUrl;
+
+    const player = document.getElementById('voice-player');
+    player.src = data.audioUrl;
+    document.getElementById('voice-dl-link').href = data.audioUrl;
+    document.getElementById('voice-chars-left').textContent = (data.remaining_chars||0).toLocaleString();
+    document.getElementById('voice-result').style.display='block';
+    document.getElementById('nav-chars').textContent = (data.remaining_chars||0).toLocaleString();
+
+  } catch(e) {
+    showStatus('voice-status','error', e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-waveform-lines"></i> Generează Voce';
+  }
+}
+
+async function sendAudioToSmartCut() {
+  if (!generatedAudioUrl) return;
+  // Fetch the audio as a blob and set it as cut file
+  try {
+    const res = await fetch(generatedAudioUrl);
+    const blob = await res.blob();
+    const file = new File([blob], 'voice_generated.mp3', {type:'audio/mpeg'});
+    setCutFile(file);
+    goStep(3);
+  } catch(e) {
+    goStep(3);
+    showStatus('cut-status','info','Fișier audio din Voice Studio pregătit.');
+  }
+}
+
+/* ═══════════════════════════════════════════
+   PANEL 3: SMART CUT
+═══════════════════════════════════════════ */
+function setCutFile(file) {
+  cutAudioFile = file;
+  document.getElementById('cut-file-info').style.display='flex';
+  document.getElementById('cut-file-name').textContent = `${file.name} (${(file.size/1024/1024).toFixed(2)} MB)`;
+  document.getElementById('cut-upload-zone').style.display='none';
+}
+
+function handleCutFile(file) {
+  if (!file) return;
+  setCutFile(file);
+}
+
+function handleCutDrop(e) {
+  e.preventDefault();
+  document.getElementById('cut-upload-zone').classList.remove('drag');
+  const file = e.dataTransfer.files[0];
+  if (file) handleCutFile(file);
+}
+
+async function runSmartCut() {
+  if (!requireAuth()) return;
+  if (!cutAudioFile) { showStatus('cut-status','warn','Încarcă un fișier audio mai întâi.'); return; }
+
+  const btn = document.getElementById('btn-cut');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Procesare...';
+  showStatus('cut-status','info','Se elimină spațiile moarte din audio...');
+
+  const formData = new FormData();
+  formData.append('file', cutAudioFile);
+  formData.append('minSilence', document.getElementById('sl-silence').value);
+  formData.append('threshold', document.getElementById('sl-thresh').value);
+
+  try {
+    const res = await fetch(`${API_BASE}/api/smart-cut`, {
+      method:'POST',
+      headers:{'Authorization':`Bearer ${authToken}`},
+      body: formData
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Eroare server');
+
+    clearStatus('cut-status');
+    const dlUrl = data.downloadUrl;
+    document.getElementById('cut-player').src = dlUrl;
+    document.getElementById('cut-dl-link').href = dlUrl;
+    document.getElementById('cut-credits-left').textContent = (data.creditsLeft||0).toFixed(1);
+    document.getElementById('cut-result').style.display='block';
+    document.getElementById('nav-credits').textContent = (data.creditsLeft||0).toFixed(1);
+
+  } catch(e) {
+    showStatus('cut-status','error', e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-scissors"></i> Rulează Smart Cut';
+  }
+}
+
+/* ═══════════════════════════════════════════
+   PANEL 4: CAPTION REMOVER
+═══════════════════════════════════════════ */
+let capCanvas, capCtx, capVideoEl;
+let isDragging=false, isResizing=false;
+let boxX=5,boxY=70,boxW=90,boxH=15;
+let dragStartX=0,dragStartY=0,boxStartX=0,boxStartY=0;
+
+function handleCapFile(file) {
+  if (!file) return;
+  capVideoFile = file;
+  document.getElementById('cap-upload-zone').style.display='none';
+  document.getElementById('cap-editor').style.display='block';
+
+  capVideoEl = document.getElementById('cap-video');
+  capVideoEl.src = URL.createObjectURL(file);
+  capVideoEl.load();
+  capVideoEl.addEventListener('loadedmetadata', initCanvas);
+}
+
+function handleCapDrop(e) {
+  e.preventDefault();
+  document.getElementById('cap-upload-zone').classList.remove('drag');
+  const file = e.dataTransfer.files[0];
+  if (file) handleCapFile(file);
+}
+
+function initCanvas() {
+  capCanvas = document.getElementById('cap-canvas');
+  capCtx = capCanvas.getContext('2d');
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+  setupCanvasEvents();
+  drawBox();
+}
+
+function resizeCanvas() {
+  if (!capVideoEl || !capCanvas) return;
+  const rect = capVideoEl.getBoundingClientRect();
+  capCanvas.width = rect.width;
+  capCanvas.height = rect.height;
+  drawBox();
+}
+
+function setupCanvasEvents() {
+  capCanvas.addEventListener('mousedown', onMouseDown);
+  capCanvas.addEventListener('mousemove', onMouseMove);
+  capCanvas.addEventListener('mouseup', onMouseUp);
+  capCanvas.addEventListener('touchstart', e=>{onMouseDown(e.touches[0]);e.preventDefault();},{passive:false});
+  capCanvas.addEventListener('touchmove', e=>{onMouseMove(e.touches[0]);e.preventDefault();},{passive:false});
+  capCanvas.addEventListener('touchend', onMouseUp);
+}
+
+function getBoxPixels() {
+  const W=capCanvas.width, H=capCanvas.height;
+  return {
+    x: boxX/100*W, y: boxY/100*H,
+    w: boxW/100*W, h: boxH/100*H
+  };
+}
+
+function onMouseDown(e) {
+  const r=capCanvas.getBoundingClientRect();
+  const mx=e.clientX-r.left, my=e.clientY-r.top;
+  const b=getBoxPixels();
+  const inResize = mx>=b.x+b.w-12 && mx<=b.x+b.w+2 && my>=b.y+b.h-12 && my<=b.y+b.h+2;
+  const inBox = mx>=b.x && mx<=b.x+b.w && my>=b.y && my<=b.y+b.h;
+  if (inResize) { isResizing=true; }
+  else if (inBox) { isDragging=true; dragStartX=mx; dragStartY=my; boxStartX=boxX; boxStartY=boxY; }
+  else {
+    // Draw new box
+    const W=capCanvas.width,H=capCanvas.height;
+    boxX=mx/W*100; boxY=my/H*100; boxW=1; boxH=1;
+    isResizing=true;
+    drawBox(); syncInputsFromBox();
+  }
+}
+
+function onMouseMove(e) {
+  const r=capCanvas.getBoundingClientRect();
+  const mx=e.clientX-r.left, my=e.clientY-r.top;
+  const W=capCanvas.width, H=capCanvas.height;
+  if (isDragging) {
+    const dx=(mx-dragStartX)/W*100, dy=(my-dragStartY)/H*100;
+    boxX=Math.max(0,Math.min(100-boxW, boxStartX+dx));
+    boxY=Math.max(0,Math.min(100-boxH, boxStartY+dy));
+    drawBox(); syncInputsFromBox();
+  } else if (isResizing) {
+    const b=getBoxPixels();
+    boxW=Math.max(2,(mx-b.x)/W*100);
+    boxH=Math.max(2,(my-b.y)/H*100);
+    drawBox(); syncInputsFromBox();
+  }
+}
+
+function onMouseUp() { isDragging=false; isResizing=false; }
+
+function drawBox() {
+  if (!capCtx || !capCanvas) return;
+  capCtx.clearRect(0,0,capCanvas.width,capCanvas.height);
+  const b=getBoxPixels();
+  // Semi-transparent fill
+  capCtx.fillStyle='rgba(236,72,153,0.18)';
+  capCtx.fillRect(b.x,b.y,b.w,b.h);
+  // Border
+  capCtx.strokeStyle='#ec4899';
+  capCtx.lineWidth=2;
+  capCtx.strokeRect(b.x,b.y,b.w,b.h);
+  // Resize handle
+  capCtx.fillStyle='#ec4899';
+  capCtx.beginPath();
+  capCtx.arc(b.x+b.w, b.y+b.h, 6, 0, Math.PI*2);
+  capCtx.fill();
+  // Label
+  capCtx.fillStyle='rgba(236,72,153,0.9)';
+  capCtx.font='bold 11px DM Sans, sans-serif';
+  capCtx.fillText(`${Math.round(boxX)}% ${Math.round(boxY)}% · ${Math.round(boxW)}×${Math.round(boxH)}%`, b.x+4, b.y>12?b.y-4:b.y+14);
+}
+
+function syncInputsFromBox() {
+  document.getElementById('cap-x').value=Math.round(boxX);
+  document.getElementById('cap-y').value=Math.round(boxY);
+  document.getElementById('cap-w').value=Math.round(boxW);
+  document.getElementById('cap-h').value=Math.round(boxH);
+}
+
+function syncBoxFromInputs() {
+  boxX=parseFloat(document.getElementById('cap-x').value)||5;
+  boxY=parseFloat(document.getElementById('cap-y').value)||70;
+  boxW=parseFloat(document.getElementById('cap-w').value)||90;
+  boxH=parseFloat(document.getElementById('cap-h').value)||15;
+  drawBox();
+}
+
+async function runCaptionRemover() {
+  if (!requireAuth()) return;
+  if (!capVideoFile) { showStatus('cap-status','warn','Încarcă un video mai întâi.'); return; }
+
+  const btn = document.getElementById('btn-cap');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Procesare video...';
+  showStatus('cap-status','info','Se elimină captionul din video, poate dura câteva minute...');
+
+  const formData = new FormData();
+  formData.append('video', capVideoFile);
+  formData.append('boxY', Math.round(boxY));
+  formData.append('boxH', Math.round(boxH));
+  formData.append('boxX', Math.round(boxX));
+  formData.append('boxW', Math.round(boxW));
+
+  try {
+    const res = await fetch(`${API_BASE}/api/remove-caption`, {
+      method:'POST',
+      headers:{'Authorization':`Bearer ${authToken}`},
+      body: formData
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Eroare server');
+
+    clearStatus('cap-status');
+    document.getElementById('cap-dl-link').href = data.downloadUrl;
+    document.getElementById('cap-credits-left').textContent = (data.creditsLeft||0).toFixed(1);
+    document.getElementById('cap-result').style.display='block';
+    document.getElementById('nav-credits').textContent = (data.creditsLeft||0).toFixed(1);
+
+  } catch(e) {
+    showStatus('cap-status','error', e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-eraser"></i> Elimină Captionul';
+  }
+}
+
+/* ═══════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════ */
+buildVoiceGrid();
+fetchMe();
+
+// Close login modal on overlay click
+document.getElementById('login-modal').addEventListener('click', function(e){
+  if (e.target===this) hideLoginModal();
+});
+</script>
+</body>
+</html>
