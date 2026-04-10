@@ -190,7 +190,7 @@ app.post('/api/generate', authenticate, async (req, res) => {
                         voice_settings: {
                             stability:        parseFloat(stability)       || 0.5,
                             similarity_boost: parseFloat(similarity_boost)|| 0.75,
-                            speed:            Math.min(2.0, Math.max(0.7, parseFloat(speed) || 1.0))
+                            speed:            Math.min(1.2, Math.max(0.7, parseFloat(speed) || 1.0))
                         },
                         with_transcript: false
                     }),
@@ -452,16 +452,19 @@ app.post('/api/transcribe', authenticate, upload.single('audio'), async (req, re
     if (!req.file) return res.status(400).json({ error: 'Fișier audio lipsă.' });
     const inputPath = req.file.path;
     try {
-        // AI33 Whisper endpoint (OpenAI-compatible)
-        const FormData = require('form-data');
+        // Citim fișierul și îl trimitem ca FormData nativ (Node 18+, fără pachet extern)
+        const fileBuffer = fs.readFileSync(inputPath);
+        const { Blob } = require('buffer');
+        const blob = new Blob([fileBuffer], { type: 'audio/mpeg' });
+
         const form = new FormData();
-        form.append('file', fs.createReadStream(inputPath), { filename: 'audio.mp3', contentType: 'audio/mpeg' });
+        form.append('file', blob, 'audio.mp3');
         form.append('model', 'whisper-1');
         form.append('response_format', 'text');
 
         const whisperRes = await fetch(`${AI33_BASE_URL}/v1/audio/transcriptions`, {
             method: 'POST',
-            headers: { 'xi-api-key': AI33_API_KEY, ...form.getHeaders() },
+            headers: { 'xi-api-key': AI33_API_KEY },
             body: form,
             signal: AbortSignal.timeout(120000)
         });
@@ -471,7 +474,7 @@ app.post('/api/transcribe', authenticate, upload.single('audio'), async (req, re
         if (!whisperRes.ok) {
             const err = await whisperRes.text();
             console.error('Whisper error:', whisperRes.status, err);
-            return res.status(500).json({ error: 'Transcrierea Whisper a eșuat.' });
+            return res.status(500).json({ error: `Whisper ${whisperRes.status}: ${err}` });
         }
 
         const text = await whisperRes.text();
