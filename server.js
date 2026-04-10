@@ -269,10 +269,44 @@ app.post('/api/auth/google', async (req, res) => {
 app.get('/api/auth/me', authenticate, (req, res) => res.json({ user: req.user }));
 
 // ══════════════════════════════════════════════════════════════
+// ██ JOB QUEUE — async processing cu polling
+// ══════════════════════════════════════════════════════════════
+const jobs = new Map(); // jobId → { status, progress, data, error, userId, createdAt }
+
+function newJob(userId) {
+    const jobId = `job_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+    jobs.set(jobId, { status: 'pending', progress: 'Se inițializează...', data: null, error: null, userId, createdAt: Date.now() });
+    return jobId;
+}
+function setJobProgress(jobId, progress) {
+    const j = jobs.get(jobId); if (j) { j.progress = progress; j.status = 'running'; }
+}
+function setJobDone(jobId, data) {
+    const j = jobs.get(jobId); if (j) { j.status = 'done'; j.data = data; }
+}
+function setJobError(jobId, error) {
+    const j = jobs.get(jobId); if (j) { j.status = 'error'; j.error = error; }
+}
+
+// Curăță job-uri vechi (>2h)
+setInterval(() => {
+    const cutoff = Date.now() - 2 * 3600000;
+    for (const [id, job] of jobs) { if (job.createdAt < cutoff) jobs.delete(id); }
+}, 600000);
+
+// GET /api/job/:id — polling endpoint
+app.get('/api/job/:jobId', authenticate, (req, res) => {
+    const job = jobs.get(req.params.jobId);
+    if (!job) return res.status(404).json({ error: 'Job negăsit sau expirat.' });
+    if (job.userId !== req.userId) return res.status(403).json({ error: 'Acces interzis.' });
+    res.json({ status: job.status, progress: job.progress, data: job.data, error: job.error });
+});
+
+// ══════════════════════════════════════════════════════════════
 // ██ /api/process-yt — PIPELINE COMPLET (2 credite + voice chars)
+// Răspunde imediat cu jobId, procesează în background
 // ══════════════════════════════════════════════════════════════
 app.post('/api/process-yt', authenticate, async (req, res) => {
-    const t0 = Date.now();
     const { url, quality = '1080', limba = 'română' } = req.body;
     if (!url) return res.status(400).json({ error: 'URL lipsă' });
 
@@ -283,38 +317,59 @@ app.post('/api/process-yt', authenticate, async (req, res) => {
     const outputPath = path.join(DOWNLOAD_DIR, `${videoId}_${quality}.mp4`);
     console.log(`\n${ts()} ══ /api/process-yt | ${videoId} | ${quality}p | ${limba}`);
 
-    let creditResult;
+    // Verifică cache înainte să creeze job (răspuns instant)
     try {
         const cached = await VideoCache.findOne({ videoId }).catch(() => null);
         if (cached && fs.existsSync(outputPath) && fs.statSync(outputPath).size > 100*1024) {
             const balance = await hubAPI.checkCredits(req.userId);
-            return res.json({ status:'ok', downloadUrl:`/download/${path.basename(outputPath)}`, originalText: cached.originalText, translatedText: cached.translatedText, creditsLeft: balance.credits, voice_characters: balance.voice_characters });
+            return res.json({ status: 'done', cached: true, data: { downloadUrl: `/download/${path.basename(outputPath)}`, originalText: cached.originalText, translatedText: cached.translatedText, creditsLeft: balance.credits, voice_characters: balance.voice_characters } });
         }
+    } catch(e) {}
 
-        try { creditResult = await hubAPI.useCredits(req.userId, 2); }
-        catch(e) { return res.status(403).json({ error: 'Credite insuficiente. Ai nevoie de 2 credite pentru pipeline complet.' }); }
+    // Creează job și răspunde imediat
+    const jobId = newJob(req.userId);
+    res.json({ status: 'queued', jobId });
 
-        const [aiData] = await Promise.all([
-            getTranscriptAndTranslation(cleanUrl, videoId, limba),
-            downloadVideo(cleanUrl, outputPath, quality),
-        ]);
+    // Procesează în background (fără await)
+    (async () => {
+        const t0 = Date.now();
+        let creditResult;
+        try {
+            setJobProgress(jobId, 'Se verifică creditele...');
+            try { creditResult = await hubAPI.useCredits(req.userId, 2); }
+            catch(e) { return setJobError(jobId, 'Credite insuficiente. Ai nevoie de 2 credite pentru pipeline complet.'); }
 
-        await VideoCache.create({ videoId, originalText: aiData.original, translatedText: aiData.translated }).catch(() => {});
-        console.log(`${ts()} ✅ TOTAL: ${elapsed(t0)}`);
+            setJobProgress(jobId, `Se descarcă video ${quality}p și se extrage transcrierea...`);
 
-        res.json({ status: 'ok', downloadUrl: `/download/${path.basename(outputPath)}`, originalText: aiData.original, translatedText: aiData.translated, creditsLeft: creditResult.credits, voice_characters: creditResult.voice_characters });
+            const [aiData] = await Promise.all([
+                getTranscriptAndTranslation(cleanUrl, videoId, limba),
+                downloadVideo(cleanUrl, outputPath, quality),
+            ]);
 
-    } catch(e) {
-        console.error(`${ts()} ❌ FAIL [${videoId}]: ${e.message.slice(0,300)}`);
-        if (fs.existsSync(outputPath)) try { fs.unlinkSync(outputPath); } catch(e2) {}
-        if (creditResult) {
-            try {
-                const r = await fetch(`${process.env.HUB_URL}/api/internal/refund-credits`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-internal-key': process.env.INTERNAL_API_KEY }, body: JSON.stringify({ userId: req.userId, amount: 2 }) });
-                if (r.ok) { const rd = await r.json(); console.log(`${ts()} 🔄 Refund 2 credite → ${rd.credits}`); }
-            } catch(refErr) {}
+            setJobProgress(jobId, 'Se finalizează...');
+            await VideoCache.create({ videoId, originalText: aiData.original, translatedText: aiData.translated }).catch(() => {});
+            console.log(`${ts()} ✅ TOTAL: ${elapsed(t0)}`);
+
+            setJobDone(jobId, {
+                downloadUrl: `/download/${path.basename(outputPath)}`,
+                originalText: aiData.original,
+                translatedText: aiData.translated,
+                creditsLeft: creditResult.credits,
+                voice_characters: creditResult.voice_characters
+            });
+
+        } catch(e) {
+            console.error(`${ts()} ❌ FAIL [${videoId}]: ${e.message.slice(0,300)}`);
+            if (fs.existsSync(outputPath)) try { fs.unlinkSync(outputPath); } catch(e2) {}
+            if (creditResult) {
+                try {
+                    const r = await fetch(`${process.env.HUB_URL}/api/internal/refund-credits`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-internal-key': process.env.INTERNAL_API_KEY }, body: JSON.stringify({ userId: req.userId, amount: 2 }) });
+                    if (r.ok) { const rd = await r.json(); console.log(`${ts()} 🔄 Refund 2 credite → ${rd.credits}`); }
+                } catch(refErr) {}
+            }
+            setJobError(jobId, 'Serverul nu a putut procesa videoul. Încearcă alt link.');
         }
-        res.status(500).json({ error: 'Serverul nu a putut procesa videoul. Încearcă alt link.' });
-    }
+    })();
 });
 
 // ══════════════════════════════════════════════════════════════
