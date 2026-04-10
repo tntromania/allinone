@@ -19,7 +19,7 @@ const PORT = process.env.PORT || 3000;
 const AI33_API_KEY  = process.env.AI33_API_KEY;
 const AI33_BASE_URL = 'https://api.ai33.pro';
 
-const CREDIT_COST = 2.5; // cost per usage pentru TOATE tool-urile
+const CREDIT_COST = 2; // cost per usage pentru TOATE tool-urile
 
 const DOWNLOAD_DIR = path.join(__dirname, 'downloads');
 const PUBLIC_DIR   = path.join(__dirname, 'public');
@@ -190,7 +190,7 @@ app.post('/api/generate', authenticate, async (req, res) => {
                         voice_settings: {
                             stability:        parseFloat(stability)       || 0.5,
                             similarity_boost: parseFloat(similarity_boost)|| 0.75,
-                            speed:            parseFloat(speed)           || 1.0
+                            speed:            Math.min(2.0, Math.max(0.7, parseFloat(speed) || 1.0))
                         },
                         with_transcript: false
                     }),
@@ -270,7 +270,8 @@ app.post('/api/download', authenticate, async (req, res) => {
         // Descărcare video
         if (format === 'mp4' || format === 'both') {
             await new Promise((resolve, reject) => {
-                const cmd = `yt-dlp ${qualityFlag} --merge-output-format mp4 -o "${videoOut}" --no-warnings "${url}"`;
+                const proxyFlag = process.env.YT_PROXY ? `--proxy "${process.env.YT_PROXY}"` : '';
+                const cmd = `yt-dlp ${qualityFlag} --merge-output-format mp4 -o "${videoOut}" --no-warnings ${proxyFlag} "${url}"`;
                 exec(cmd, { timeout: 300000 }, (err, stdout, stderr) => {
                     if (err) {
                         console.error('yt-dlp video error:', stderr);
@@ -285,7 +286,8 @@ app.post('/api/download', authenticate, async (req, res) => {
         // Descărcare audio
         if (format === 'mp3' || format === 'both') {
             await new Promise((resolve, reject) => {
-                const cmd = `yt-dlp -x --audio-format mp3 --audio-quality 0 -o "${audioOut}" --no-warnings "${url}"`;
+                const proxyFlag = process.env.YT_PROXY ? `--proxy "${process.env.YT_PROXY}"` : '';
+                const cmd = `yt-dlp -x --audio-format mp3 --audio-quality 0 -o "${audioOut}" --no-warnings ${proxyFlag} "${url}"`;
                 exec(cmd, { timeout: 300000 }, (err, stdout, stderr) => {
                     if (err) {
                         console.error('yt-dlp audio error:', stderr);
@@ -301,7 +303,8 @@ app.post('/api/download', authenticate, async (req, res) => {
         if (transcript) {
             try {
                 await new Promise((resolve) => {
-                    const cmd = `yt-dlp --write-subs --write-auto-subs --sub-langs "ro,en,ro-RO,en-US" --skip-download --convert-subs vtt -o "${path.join(DOWNLOAD_DIR, baseName)}" --no-warnings "${url}"`;
+                    const proxyFlag = process.env.YT_PROXY ? `--proxy "${process.env.YT_PROXY}"` : '';
+                    const cmd = `yt-dlp --write-subs --write-auto-subs --sub-langs "ro,en,ro-RO,en-US" --skip-download --convert-subs vtt -o "${path.join(DOWNLOAD_DIR, baseName)}" --no-warnings ${proxyFlag} "${url}"`;
                     exec(cmd, { timeout: 60000 }, () => resolve());
                 });
 
@@ -386,6 +389,16 @@ app.post('/api/remove-caption', authenticate, upload.single('video'), async (req
         }
         if (!req.file) return res.status(400).json({ error: "Video lipsă." });
 
+        // Scădem creditele IMEDIAT la upload, înainte de procesare
+        let creditsLeft = 0;
+        try {
+            const creditResult = await hubAPI.useCredits(req.userId, CREDIT_COST);
+            creditsLeft = creditResult.credits;
+        } catch (e) {
+            if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+            return res.status(500).json({ error: "Eroare la scăderea creditelor." });
+        }
+
         const inputPath  = req.file.path;
         const videoId    = Date.now();
         const outputPath = path.join(DOWNLOAD_DIR, `clean_${videoId}.mp4`);
@@ -423,12 +436,7 @@ app.post('/api/remove-caption', authenticate, upload.single('video'), async (req
                     console.error("FFMPEG ERROR:", stderr);
                     return res.status(500).json({ error: "Eroare video. Încearcă o zonă puțin mai mică." });
                 }
-                try {
-                    const result = await hubAPI.useCredits(req.userId, CREDIT_COST);
-                    res.json({ status: 'ok', downloadUrl: `/downloads/clean_${videoId}.mp4`, creditsLeft: result.credits });
-                } catch {
-                    res.json({ status: 'ok', downloadUrl: `/downloads/clean_${videoId}.mp4`, creditsLeft: 0 });
-                }
+                res.json({ status: 'ok', downloadUrl: `/downloads/clean_${videoId}.mp4`, creditsLeft });
             });
         });
     } catch (e) {
