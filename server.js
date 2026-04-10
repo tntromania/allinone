@@ -446,6 +446,91 @@ app.post('/api/remove-caption', authenticate, upload.single('video'), async (req
 });
 
 // ══════════════════════════════════════════════════════════════
+// ██ 5. WHISPER TRANSCRIBE  (fără cost extra — inclus în pipeline)
+// ══════════════════════════════════════════════════════════════
+app.post('/api/transcribe', authenticate, upload.single('audio'), async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'Fișier audio lipsă.' });
+    const inputPath = req.file.path;
+    try {
+        // AI33 Whisper endpoint (OpenAI-compatible)
+        const FormData = require('form-data');
+        const form = new FormData();
+        form.append('file', fs.createReadStream(inputPath), { filename: 'audio.mp3', contentType: 'audio/mpeg' });
+        form.append('model', 'whisper-1');
+        form.append('response_format', 'text');
+
+        const whisperRes = await fetch(`${AI33_BASE_URL}/v1/audio/transcriptions`, {
+            method: 'POST',
+            headers: { 'xi-api-key': AI33_API_KEY, ...form.getHeaders() },
+            body: form,
+            signal: AbortSignal.timeout(120000)
+        });
+
+        if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+
+        if (!whisperRes.ok) {
+            const err = await whisperRes.text();
+            console.error('Whisper error:', whisperRes.status, err);
+            return res.status(500).json({ error: 'Transcrierea Whisper a eșuat.' });
+        }
+
+        const text = await whisperRes.text();
+        console.log(`🎤 Whisper transcris: ${text.length} chars`);
+        res.json({ transcript: text.trim() });
+
+    } catch (e) {
+        if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+        console.error('Transcribe error:', e.message);
+        res.status(500).json({ error: e.message || 'Eroare la transcriere.' });
+    }
+});
+
+// ══════════════════════════════════════════════════════════════
+// ██ 6. TRADUCERE în română  (fără cost extra — inclus în pipeline)
+// ══════════════════════════════════════════════════════════════
+app.post('/api/translate', authenticate, async (req, res) => {
+    const { text } = req.body;
+    if (!text) return res.status(400).json({ error: 'Text lipsă.' });
+
+    try {
+        const translateRes = await fetch(`${AI33_BASE_URL}/v1/chat/completions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'xi-api-key': AI33_API_KEY },
+            body: JSON.stringify({
+                model: 'gpt-4o-mini',
+                messages: [
+                    {
+                        role: 'system',
+                        content: 'Ești un traducător profesionist. Traduce textul primit în română naturală, păstrând tonul și stilul original. Returnează DOAR textul tradus, fără explicații, fără ghilimele, fără prefixe.'
+                    },
+                    { role: 'user', content: text }
+                ],
+                max_tokens: 4000,
+                temperature: 0.3
+            }),
+            signal: AbortSignal.timeout(30000)
+        });
+
+        if (!translateRes.ok) {
+            const err = await translateRes.text();
+            console.error('Translate error:', translateRes.status, err);
+            return res.status(500).json({ error: 'Traducerea a eșuat.' });
+        }
+
+        const data = await translateRes.json();
+        const translated = data.choices?.[0]?.message?.content?.trim();
+        if (!translated) return res.status(500).json({ error: 'Răspuns traducere invalid.' });
+
+        console.log(`🌍 Tradus: ${text.length} → ${translated.length} chars`);
+        res.json({ translated });
+
+    } catch (e) {
+        console.error('Translate error:', e.message);
+        res.status(500).json({ error: e.message || 'Eroare la traducere.' });
+    }
+});
+
+// ══════════════════════════════════════════════════════════════
 // ██ CURĂȚARE FIȘIERE VECHI (24h)
 // ══════════════════════════════════════════════════════════════
 setInterval(() => {
