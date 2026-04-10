@@ -610,13 +610,39 @@ async function runPipeline() {
     setStepBody(1, `<div class="status-info flex items-center gap-2 pulse text-sm"><i class="fas fa-circle-notch spin"></i> Se descarcă video ${quality}p și se extrage transcrierea în paralel...</div>`);
 
     try {
-      const res = await fetch(`${API_BASE}/api/process-yt`, {
+      // Start job async — răspunde instant cu jobId
+      const startRes = await fetch(`${API_BASE}/api/process-yt`, {
         method:'POST',
         headers:{'Content-Type':'application/json','Authorization':`Bearer ${authToken}`},
         body: JSON.stringify({ url, quality, limba })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Eroare server');
+      const startData = await startRes.json();
+      if (!startRes.ok) throw new Error(startData.error || 'Eroare server');
+
+      let data;
+      // Cache hit — răspuns instant
+      if (startData.status === 'done' && startData.cached) {
+        data = startData.data;
+      } else {
+        // Polling până se termină
+        const jobId = startData.jobId;
+        const maxWait = 5 * 60 * 1000; // 5 minute max
+        const pollInterval = 3000;
+        const deadline = Date.now() + maxWait;
+        while (Date.now() < deadline) {
+          await new Promise(r => setTimeout(r, pollInterval));
+          const pollRes = await fetch(`${API_BASE}/api/job/${jobId}`, {
+            headers:{'Authorization':`Bearer ${authToken}`}
+          });
+          const poll = await pollRes.json();
+          if (!pollRes.ok) throw new Error(poll.error || 'Eroare polling');
+          // Update status text cu progresul live
+          setStep(1, 'active', poll.progress || 'Se procesează...');
+          if (poll.status === 'done') { data = poll.data; break; }
+          if (poll.status === 'error') throw new Error(poll.error || 'Eroare procesare');
+        }
+        if (!data) throw new Error('Timeout: procesarea a durat prea mult (5 min).');
+      }
 
       urlRes.videoUrl     = data.downloadUrl;
       urlRes.originalText = data.originalText;
