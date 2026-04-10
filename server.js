@@ -50,6 +50,7 @@ app.use(express.json({ limit: '10kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/api/process-yt', rateLimit({ windowMs: 60 * 1000, max: 10, message: { error: 'Maxim 10 video-uri pe minut.' } }));
+app.use('/api/download',   rateLimit({ windowMs: 60 * 1000, max: 10, message: { error: 'Maxim 10 cereri pe minut.' } }));
 app.use('/api/auth/google', rateLimit({ windowMs: 15 * 60 * 1000, max: 20, message: { error: 'Prea multe încercări.' } }));
 
 // ── MONGO — cache YT ────────────────────────
@@ -302,7 +303,7 @@ const downloadAudio = async (url, audioPath) => {
 };
 
 // ══════════════════════════════════════════════════════════════
-// ██ TRANSCRIERE + TRADUCERE ROMÂNĂ
+// ██ TRANSCRIERE + TRADUCERE ROMÂNĂ (internă)
 // ══════════════════════════════════════════════════════════════
 const getTranscriptAndTranslation = async (url, videoId) => {
     const t0 = Date.now();
@@ -415,7 +416,170 @@ app.post('/api/auth/google', async (req, res) => {
 app.get('/api/auth/me', authenticate, (req, res) => res.json({ user: req.user }));
 
 // ══════════════════════════════════════════════════════════════
-// ██ PROCESARE YT
+// ██ /api/download — endpoint pentru pipeline HTML
+// POST { url, format, quality, transcript }
+// Răspuns: { videoUrl, audioUrl, transcript, creditsLeft }
+// ══════════════════════════════════════════════════════════════
+app.post('/api/download', authenticate, async (req, res) => {
+    const t0 = Date.now();
+    const { url, format = 'mp4', quality, transcript: wantTranscript = true } = req.body;
+    if (!url) return res.status(400).json({ error: 'URL lipsă' });
+
+    const parsed = sanitizeYouTubeUrl(url);
+    if (!parsed) return res.status(400).json({ error: 'Link YouTube invalid.' });
+
+    const { cleanUrl, videoId } = parsed;
+    const videoPath = path.join(DOWNLOAD_DIR, `${videoId}.mp4`);
+    const audioPath = path.join(DOWNLOAD_DIR, `${videoId}_audio.mp3`);
+
+    console.log(`\n${ts()} ══ /api/download | ID: ${videoId} | format: ${format}`);
+
+    let creditResult;
+    try {
+        // ── CACHE HIT ──
+        const cached = await VideoCache.findOne({ videoId }).catch(() => null);
+        const videoExists = fs.existsSync(videoPath) && fs.statSync(videoPath).size > 100 * 1024;
+        const audioExists = fs.existsSync(audioPath) && fs.statSync(audioPath).size > 1000;
+
+        if (cached && (videoExists || audioExists)) {
+            console.log(`${ts()} ⚡ CACHE HIT: ${videoId}`);
+            const balance = await hubAPI.checkCredits(req.userId);
+            return res.json({
+                videoUrl: videoExists ? `/download/${videoId}.mp4` : null,
+                audioUrl: audioExists ? `/download/${videoId}_audio.mp3` : null,
+                transcript: cached.translatedText || cached.originalText || null,
+                creditsLeft: balance.credits,
+            });
+        }
+
+        // ── SCADE CREDIT ──
+        try { creditResult = await hubAPI.useCredits(req.userId, 1); }
+        catch (e) { return res.status(403).json({ error: 'Nu mai ai credite! Cumpără un pachet.' }); }
+
+        const tasks = [];
+        let transcriptResult = null;
+
+        // ── Descarcă în funcție de format ──
+        if (format === 'mp3') {
+            // doar audio
+            tasks.push(downloadAudio(cleanUrl, audioPath));
+        } else if (format === 'both') {
+            // video + audio separat (pentru Whisper ulterior)
+            tasks.push(downloadVideo(cleanUrl, videoPath));
+            tasks.push(downloadAudio(cleanUrl, audioPath));
+        } else {
+            // mp4 default
+            tasks.push(downloadVideo(cleanUrl, videoPath));
+        }
+
+        // ── Transcriere în paralel dacă e cerută ──
+        if (wantTranscript) {
+            tasks.push(
+                getTranscriptAndTranslation(cleanUrl, videoId)
+                    .then(r => { transcriptResult = r; })
+                    .catch(e => { console.warn(`${ts()} ⚠️ Transcriere paralel fail: ${e.message}`); })
+            );
+        }
+
+        await Promise.all(tasks);
+
+        // ── Cache ──
+        if (transcriptResult) {
+            await VideoCache.create({ videoId, originalText: transcriptResult.original, translatedText: transcriptResult.translated }).catch(() => {});
+        }
+
+        console.log(`${ts()} ✅ /api/download OK | ${elapsed(t0)}`);
+
+        res.json({
+            videoUrl: fs.existsSync(videoPath) && fs.statSync(videoPath).size > 100 * 1024 ? `/download/${videoId}.mp4` : null,
+            audioUrl: fs.existsSync(audioPath) && fs.statSync(audioPath).size > 1000 ? `/download/${videoId}_audio.mp3` : null,
+            transcript: transcriptResult?.translated || transcriptResult?.original || null,
+            creditsLeft: creditResult.credits,
+        });
+
+    } catch (e) {
+        console.error(`${ts()} ❌ /api/download FAIL [${videoId}] (${elapsed(t0)}): ${e.message.slice(0, 300)}`);
+        // Refund credit
+        if (creditResult) {
+            try {
+                const r = await fetch(`${process.env.HUB_URL}/api/internal/refund-credits`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-internal-key': process.env.INTERNAL_API_KEY },
+                    body: JSON.stringify({ userId: req.userId, amount: 1 }),
+                });
+                if (r.ok) { const rd = await r.json(); console.log(`${ts()} 🔄 Refund OK → credite: ${rd.credits}`); }
+            } catch (refErr) { console.error(`${ts()} ⚠️ Refund fail: ${refErr.message}`); }
+        }
+        res.status(500).json({ error: 'Serverul nu a putut procesa acest video. Încearcă alt link.' });
+    }
+});
+
+// ══════════════════════════════════════════════════════════════
+// ██ /api/transcribe — Whisper pe fișier audio uploadat
+// POST multipart: audio (File)
+// Răspuns: { transcript }
+// ══════════════════════════════════════════════════════════════
+app.post('/api/transcribe', authenticate, uploadTmp.single('audio'), async (req, res) => {
+    const tmpPath = req.file?.path;
+    try {
+        if (!req.file) return res.status(400).json({ error: 'Fișier audio lipsă.' });
+
+        // Redenumim cu extensie .mp3 ca Whisper să fie fericit
+        const mp3Path = tmpPath + '.mp3';
+        fs.renameSync(tmpPath, mp3Path);
+
+        console.log(`${ts()} 🧠 Whisper upload (${(req.file.size / 1024 / 1024).toFixed(2)} MB)...`);
+        const t0 = Date.now();
+
+        const transcription = await openai.audio.transcriptions.create({
+            file: fs.createReadStream(mp3Path),
+            model: 'whisper-1',
+        });
+
+        try { fs.unlinkSync(mp3Path); } catch (e) {}
+        console.log(`${ts()} ✅ Whisper OK (${elapsed(t0)}) · ${transcription.text.length} chars`);
+
+        res.json({ transcript: transcription.text });
+
+    } catch (e) {
+        console.error(`${ts()} ❌ /api/transcribe fail:`, e.message);
+        if (tmpPath && fs.existsSync(tmpPath)) try { fs.unlinkSync(tmpPath); } catch (_) {}
+        res.status(500).json({ error: 'Eroare la transcriere: ' + e.message });
+    }
+});
+
+// ══════════════════════════════════════════════════════════════
+// ██ /api/translate — traducere text în română via GPT
+// POST { text }
+// Răspuns: { translated }
+// ══════════════════════════════════════════════════════════════
+app.post('/api/translate', authenticate, async (req, res) => {
+    try {
+        const { text } = req.body;
+        if (!text) return res.status(400).json({ error: 'Text lipsă.' });
+
+        console.log(`${ts()} 🌍 /api/translate · ${text.length} chars`);
+        const t0 = Date.now();
+
+        const completion = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [
+                { role: 'system', content: 'Ești un traducător profesionist. Traduce textul primit perfect, natural și cursiv în ROMÂNĂ. Dacă e deja în română, returnează-l exact. Returnează DOAR textul tradus, fără comentarii sau explicații.' },
+                { role: 'user', content: text.substring(0, 10000) }
+            ],
+        });
+
+        const translated = completion.choices[0].message.content;
+        console.log(`${ts()} ✅ /api/translate OK (${elapsed(t0)})`);
+        res.json({ translated });
+
+    } catch (e) {
+        console.error(`${ts()} ❌ /api/translate fail:`, e.message);
+        res.status(500).json({ error: 'Eroare la traducere: ' + e.message });
+    }
+});
+
+// ══════════════════════════════════════════════════════════════
+// ██ PROCESARE YT (endpoint vechi — păstrat pentru compatibilitate)
 // POST /api/process-yt  →  { url }
 // ══════════════════════════════════════════════════════════════
 app.post('/api/process-yt', authenticate, async (req, res) => {
@@ -665,8 +829,11 @@ setInterval(() => {
 
 app.listen(PORT, () => {
     console.log(`\n🚀 Viralio All-in-One · port ${PORT}`);
-    console.log(`   ✅ /api/process-yt    — YT Download + Transcriere Română`);
-    console.log(`   ✅ /api/generate      — Voice Generation (AI33/ElevenLabs)`);
-    console.log(`   ✅ /api/smart-cut     — Smart Cut (silence remove)`);
-    console.log(`   ✅ /api/remove-caption — Caption Remover (delogo)\n`);
+    console.log(`   ✅ /api/download        — YT Download (video/audio/both) + Transcriere`);
+    console.log(`   ✅ /api/transcribe      — Whisper pe fișier audio uploadat`);
+    console.log(`   ✅ /api/translate       — Traducere română (GPT-4o-mini)`);
+    console.log(`   ✅ /api/process-yt      — YT legacy (compatibilitate)`);
+    console.log(`   ✅ /api/generate        — Voice Generation (AI33/ElevenLabs)`);
+    console.log(`   ✅ /api/smart-cut       — Smart Cut (silence remove)`);
+    console.log(`   ✅ /api/remove-caption  — Caption Remover (delogo)\n`);
 });
