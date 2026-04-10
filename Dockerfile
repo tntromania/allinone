@@ -1,23 +1,25 @@
-FROM node:20-bullseye-slim
+FROM node:22-bookworm
 
-# Instalam FFmpeg (strict necesar pentru procesare video)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y ffmpeg python3 python3-pip wget curl \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Instalează yt-dlp
+RUN wget https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux \
+    -O /usr/local/bin/yt-dlp && chmod a+rx /usr/local/bin/yt-dlp
+
+# Creează user non-root
+RUN useradd -m -u 1001 appuser
 
 WORKDIR /app
-
-# Instalam dependentele Node
 COPY package*.json ./
-RUN npm install
+RUN npm install --omit=dev
 
-# Copiem fisierele noastre
 COPY . .
 
-# Cream folderele necesare
-RUN mkdir -p downloads && chmod 777 downloads
-RUN mkdir -p public && chmod 777 public
+# Directorul downloads aparține appuser
+RUN mkdir -p /app/downloads && chown -R appuser:appuser /app
+
+USER appuser
 
 EXPOSE 3000
-
 CMD ["node", "server.js"]
