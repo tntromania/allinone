@@ -62,6 +62,11 @@ tailwind.config = {
   /* SHINE */
   @keyframes shine{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
   .animate-shine-fast{animation:shine 2s infinite}
+
+  /* URL ROW */
+  .url-row { position: relative; }
+  .url-row .remove-btn { position:absolute; right:12px; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; color:#cbd5e1; transition:color .2s; padding:4px; }
+  .url-row .remove-btn:hover { color:#f87171; }
 </style>
 </head>
 <body class="md:p-4">
@@ -72,24 +77,24 @@ tailwind.config = {
 
 <div class="bg-white md:rounded-[1.5rem] min-h-screen shadow-xl overflow-hidden relative pb-24 border border-slate-100">
 
-  <!-- NAV -->
+  <!-- NAV — FIX #5: mai scurtă, max-w-xl centrat -->
   <div class="sticky top-0 z-50 flex w-full justify-center px-2 py-4 md:p-2">
-    <nav class="w-full rounded-2xl border border-slate-200 bg-white/80 backdrop-blur-xl md:mx-12 shadow-sm px-5 md:px-8 py-3 flex justify-between items-center">
-      <a class="flex items-center font-black text-xl tracking-tight text-slate-900" href="https://viralio.ro">
-        <div class="w-8 h-8 rounded-xl bg-gradient-viralio flex items-center justify-center text-white mr-2.5 shadow-md"><i class="fa-solid fa-bolt text-sm"></i></div>
-        Viralio <span class="text-sm font-medium text-slate-400 ml-2 border-l border-slate-200 pl-2 mt-0.5">Auto Pipeline</span>
+    <nav class="w-full max-w-xl rounded-2xl border border-slate-200 bg-white/80 backdrop-blur-xl shadow-sm px-4 py-2.5 flex justify-between items-center">
+      <a class="flex items-center font-black text-lg tracking-tight text-slate-900" href="https://viralio.ro">
+        <div class="w-7 h-7 rounded-xl bg-gradient-viralio flex items-center justify-center text-white mr-2 shadow-md"><i class="fa-solid fa-bolt text-xs"></i></div>
+        Viralio <span class="text-xs font-medium text-slate-400 ml-2 border-l border-slate-200 pl-2">Pipeline</span>
       </a>
       <div class="flex items-center gap-2">
-        <button onclick="openLoginModal()" id="login-top-btn" class="px-4 py-2 bg-slate-900 text-white rounded-xl hover:bg-viralio-600 transition-all font-bold shadow-md text-sm">Conectează-te</button>
+        <button onclick="openLoginModal()" id="login-top-btn" class="px-3 py-1.5 bg-slate-900 text-white rounded-xl hover:bg-viralio-600 transition-all font-bold shadow-md text-xs">Conectează-te</button>
         <div id="user-profile" class="hidden items-center bg-slate-50 border border-slate-200 py-1 pl-1.5 pr-1.5 rounded-full">
-          <img id="nav-avatar" src="" class="w-8 h-8 rounded-full border border-slate-200">
-          <div class="flex flex-col leading-none ml-2 mr-1">
+          <img id="nav-avatar" src="" class="w-7 h-7 rounded-full border border-slate-200">
+          <div class="flex flex-col leading-none ml-1.5 mr-1">
             <span id="nav-name" class="text-xs font-bold text-slate-900 mb-0.5"></span>
-            <span class="text-[0.62rem] font-bold text-viralio-600 flex items-center gap-1.5">
-              <span id="nav-credits">0</span> credite · <span id="nav-chars">0</span> chars
+            <span class="text-[0.58rem] font-bold text-viralio-600 flex items-center gap-1">
+              <span id="nav-credits">0</span> cr · <span id="nav-chars">0</span> ch
             </span>
           </div>
-          <button onclick="logout()" class="p-2 text-slate-400 hover:text-red-500 transition-colors rounded-full hover:bg-red-50 ml-1"><i class="fa-solid fa-power-off text-xs"></i></button>
+          <button onclick="logout()" class="p-1.5 text-slate-400 hover:text-red-500 transition-colors rounded-full hover:bg-red-50 ml-1"><i class="fa-solid fa-power-off text-xs"></i></button>
         </div>
       </div>
     </nav>
@@ -142,17 +147,25 @@ tailwind.config = {
       <div class="flex items-center gap-3 px-5 py-4 border-b border-slate-100 bg-slate-50">
         <div class="w-8 h-8 rounded-xl bg-gradient-viralio flex items-center justify-center text-white text-sm shrink-0"><i class="fab fa-youtube"></i></div>
         <div>
-          <div class="font-bold text-slate-800 text-sm">Link YouTube</div>
-          <div class="text-[0.65rem] text-slate-400 font-medium">Paste link · procesare 1080p automată</div>
+          <!-- FIX #1: batch label -->
+          <div class="font-bold text-slate-800 text-sm">Link-uri YouTube <span class="text-slate-400 font-medium text-xs">— până la 5 odată</span></div>
+          <div class="text-[0.65rem] text-slate-400 font-medium">Paste link-uri · procesare 1080p automată · batch</div>
         </div>
       </div>
       <div class="p-5 space-y-4">
-        <!-- URL INPUT -->
+
+        <!-- FIX #1: BATCH URL LIST -->
         <div>
-          <div class="relative">
-            <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300 text-sm"><i class="fas fa-link"></i></span>
-            <input id="yt-url" type="text" placeholder="https://youtube.com/watch?v=..." class="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-3 text-sm font-medium text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all placeholder-slate-300">
+          <div id="url-list" class="space-y-2">
+            <div class="url-row">
+              <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300 text-sm pointer-events-none" style="position:absolute;left:14px;top:50%;transform:translateY(-50%)"><i class="fas fa-link"></i></span>
+              <input type="text" placeholder="https://youtube.com/watch?v=..." class="url-input w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-9 py-3 text-sm font-medium text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all placeholder-slate-300" style="padding-left:36px">
+              <button class="remove-btn hidden" onclick="removeUrl(this)"><i class="fas fa-xmark text-sm"></i></button>
+            </div>
           </div>
+          <button id="add-url-btn" onclick="addUrl()" class="flex items-center gap-1.5 text-xs font-bold text-indigo-400 hover:text-indigo-600 mt-2.5 transition-colors">
+            <i class="fas fa-plus-circle"></i> Adaugă link <span class="text-slate-300 font-normal">(max 5)</span>
+          </button>
         </div>
 
         <!-- CONTROLS ROW -->
@@ -210,7 +223,7 @@ tailwind.config = {
 
         <!-- RUN BUTTON -->
         <button id="run-btn" onclick="runPipeline()" class="w-full bg-gradient-viralio hover:opacity-90 text-white px-6 py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-md text-sm">
-          <i class="fas fa-wand-magic-sparkles"></i> PORNEȘTE PIPELINE · <span class="bg-white/20 rounded-md px-1.5 py-0.5 text-xs font-black">2 credite</span>
+          <i class="fas fa-wand-magic-sparkles"></i> PORNEȘTE PIPELINE · <span class="bg-white/20 rounded-md px-1.5 py-0.5 text-xs font-black">2 credite/video</span>
         </button>
       </div>
     </div>
@@ -239,7 +252,7 @@ tailwind.config = {
         <div id="step-2-badge" class="text-[0.6rem] font-bold uppercase tracking-wide px-2 py-1 rounded-md bg-slate-100 text-slate-400 shrink-0">wait</div>
       </div>
 
-      <!-- VOICE CONFIG (always visible below header) -->
+      <!-- VOICE CONFIG -->
       <div class="px-5 py-4 bg-slate-50 border-b border-slate-100">
         <div id="voice-grid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 mb-3"></div>
         <div class="grid grid-cols-3 gap-3">
@@ -252,8 +265,9 @@ tailwind.config = {
             <input type="range" id="sl-similarity" min="0" max="1" step="0.05" value="0.75" oninput="document.getElementById('val-similarity').textContent=parseFloat(this.value).toFixed(2)">
           </div>
           <div>
+            <!-- FIX #4: speed 0.70 → 1.20 conform API -->
             <div class="flex justify-between mb-1"><label class="text-[0.6rem] font-bold text-slate-400 uppercase tracking-wide">Viteză</label><span id="val-speed" class="text-[0.65rem] font-bold text-indigo-600">1.00</span></div>
-            <input type="range" id="sl-speed" min="0.5" max="2" step="0.05" value="1.0" oninput="document.getElementById('val-speed').textContent=parseFloat(this.value).toFixed(2)">
+            <input type="range" id="sl-speed" min="0.70" max="1.20" step="0.05" value="1.00" oninput="document.getElementById('val-speed').textContent=parseFloat(this.value).toFixed(2)">
           </div>
         </div>
       </div>
@@ -296,7 +310,8 @@ tailwind.config = {
           <div class="text-xs text-green-600 mt-0.5">Toate fișierele sunt gata pentru download</div>
         </div>
       </div>
-      <div id="final-body" class="p-5 grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+      <!-- FIX #3: caption remover + per-video results added dynamically -->
+      <div id="final-body" class="p-5 space-y-3"></div>
     </div>
 
   </div><!-- end max-w-3xl -->
@@ -380,7 +395,59 @@ window.addEventListener('load', async () => {
     } catch(e) {}
   }
   buildVoiceGrid();
+  initUrlRows();
 });
+
+// ── FIX #1: BATCH URL MANAGEMENT ─────────────────────────────
+function initUrlRows() {
+  // style the first row
+  styleUrlRow(document.querySelector('.url-row'));
+}
+
+function createUrlRow() {
+  const div = document.createElement('div');
+  div.className = 'url-row';
+  div.style.position = 'relative';
+  div.innerHTML = `
+    <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);pointer-events:none;color:#cbd5e1;font-size:.875rem"><i class="fas fa-link"></i></span>
+    <input type="text" placeholder="https://youtube.com/watch?v=..." class="url-input w-full bg-slate-50 border border-slate-200 rounded-xl py-3 text-sm font-medium text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all placeholder-slate-300" style="padding-left:36px;padding-right:36px">
+    <button class="remove-btn" onclick="removeUrl(this)" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#cbd5e1;padding:4px;transition:color .2s" onmouseenter="this.style.color='#f87171'" onmouseleave="this.style.color='#cbd5e1'"><i class="fas fa-xmark text-sm"></i></button>
+  `;
+  return div;
+}
+
+function styleUrlRow(row) {
+  if (!row) return;
+  row.style.position = 'relative';
+}
+
+function addUrl() {
+  const list = document.getElementById('url-list');
+  if (list.children.length >= 5) return;
+  const row = createUrlRow();
+  list.appendChild(row);
+  row.querySelector('.url-input').focus();
+  updateUrlUI();
+}
+
+function removeUrl(btn) {
+  const row = btn.closest('.url-row');
+  row.remove();
+  updateUrlUI();
+}
+
+function updateUrlUI() {
+  const list = document.getElementById('url-list');
+  const rows = list.querySelectorAll('.url-row');
+  const addBtn = document.getElementById('add-url-btn');
+  // Show/hide remove buttons (only show if >1 row)
+  rows.forEach(row => {
+    const rb = row.querySelector('.remove-btn');
+    if (rb) rb.style.display = rows.length > 1 ? 'block' : 'none';
+  });
+  // Hide add button if at max
+  addBtn.style.display = rows.length >= 5 ? 'none' : 'flex';
+}
 
 // ── UI HELPERS ────────────────────────────────────────────────
 function setStep(n, state, msg) {
@@ -421,8 +488,6 @@ function resetSteps() {
     document.getElementById(`step-${i}-body`).classList.add('hidden');
     document.getElementById(`step-${i}-body`).innerHTML = '';
   }
-  document.getElementById('final-result').classList.add('hidden');
-  document.getElementById('final-body').innerHTML = '';
   hideRibbon();
 }
 
@@ -459,181 +524,269 @@ function buildVoiceGrid() {
   });
 }
 
-// ══════════════════════════════════════════════════════════════
-// PIPELINE
-// ══════════════════════════════════════════════════════════════
-let pipelineResults = {};
+// ── FIX #2: TRANSCRIPT HELPERS ────────────────────────────────
+// Fixed toggleTranscript: no more double-toggle bug
+function toggleTranscript(type, idx) {
+  const orig  = document.getElementById(`transcript-orig-${idx}`);
+  const trans = document.getElementById(`transcript-trans-${idx}`);
+  if (type === 'orig') {
+    if (orig) orig.classList.toggle('hidden');
+    if (trans) trans.classList.add('hidden');
+  } else {
+    if (trans) trans.classList.toggle('hidden');
+    if (orig) orig.classList.add('hidden');
+  }
+}
 
+// Build transcript HTML for a given URL index
+// FIX #2: shows originalText always (not only when translatedText exists)
+function buildTranscriptHtml(data, limba, idx) {
+  if (!data.originalText && !data.translatedText) return '';
+  return `
+    <div class="grid grid-cols-2 gap-2">
+      <button onclick="toggleTranscript('orig',${idx})" class="bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold py-2 rounded-lg text-xs transition-colors"><i class="fas fa-closed-captioning text-slate-400 mr-1"></i>Original</button>
+      ${data.translatedText
+        ? `<button onclick="toggleTranscript('trans',${idx})" class="bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 text-indigo-700 font-semibold py-2 rounded-lg text-xs transition-colors"><i class="fas fa-language mr-1"></i>Traducere (${limba})</button>`
+        : `<div></div>`}
+    </div>
+    <div id="transcript-orig-${idx}" class="hidden bg-slate-50 rounded-xl p-4 border border-slate-200 relative">
+      <button onclick="copyText('transcript-orig-text-${idx}',this)" class="absolute top-2 right-2 text-xs bg-white border border-slate-200 text-slate-600 px-2 py-1 rounded-lg hover:bg-slate-100 font-bold"><i class="fas fa-copy"></i></button>
+      <p class="text-[0.65rem] font-bold text-slate-400 uppercase mb-2">Transcript Original</p>
+      <p id="transcript-orig-text-${idx}" class="text-sm text-slate-700 max-h-52 overflow-y-auto whitespace-pre-wrap leading-relaxed pr-2">${escHtml(data.originalText||'')}</p>
+    </div>
+    ${data.translatedText ? `
+    <div id="transcript-trans-${idx}" class="hidden bg-indigo-50 rounded-xl p-4 border border-indigo-100 relative">
+      <button onclick="copyText('transcript-trans-text-${idx}',this)" class="absolute top-2 right-2 text-xs bg-white border border-indigo-200 text-indigo-600 px-2 py-1 rounded-lg hover:bg-indigo-100 font-bold"><i class="fas fa-copy"></i></button>
+      <p class="text-[0.65rem] font-bold text-indigo-400 uppercase mb-2">Traducere · ${limba}</p>
+      <p id="transcript-trans-text-${idx}" class="text-sm text-slate-800 font-medium max-h-52 overflow-y-auto whitespace-pre-wrap leading-relaxed pr-2">${escHtml(data.translatedText||'')}</p>
+    </div>` : ''}
+  `;
+}
+
+// ══════════════════════════════════════════════════════════════
+// FIX #1: PIPELINE — BATCH (procesare pentru fiecare URL)
+// ══════════════════════════════════════════════════════════════
 async function runPipeline() {
   if (!requireAuth()) return;
 
-  const url = document.getElementById('yt-url').value.trim();
-  if (!url) { alert('Lipește un link YouTube mai întâi!'); return; }
-  if (!/youtu/.test(url)) { alert('Link YouTube invalid!'); return; }
+  // Collect all URLs
+  const urlInputs = [...document.querySelectorAll('.url-input')]
+    .map(i => i.value.trim()).filter(Boolean);
+
+  if (urlInputs.length === 0) { alert('Lipește cel puțin un link YouTube!'); return; }
+  const invalidUrls = urlInputs.filter(u => !/youtu/.test(u));
+  if (invalidUrls.length > 0) { alert('Link YouTube invalid:\n' + invalidUrls.join('\n')); return; }
 
   const quality   = document.getElementById('dl-quality').value;
   const limba     = document.getElementById('dl-limba').value;
   const skipVoice = document.getElementById('skip-voice').checked;
   const skipCut   = document.getElementById('skip-cut').checked;
-  const manualText= document.getElementById('manual-text-toggle').checked ? document.getElementById('manual-text').value.trim() : null;
+  const manualText= document.getElementById('manual-text-toggle').checked
+    ? document.getElementById('manual-text').value.trim() : null;
 
   const btn = document.getElementById('run-btn');
   btn.disabled = true;
   btn.innerHTML = '<i class="fas fa-circle-notch spin"></i> Se procesează...';
 
+  // Reset UI
   resetSteps();
-  pipelineResults = {};
+  document.getElementById('final-result').classList.add('hidden');
+  document.getElementById('final-body').innerHTML = '';
 
   const totalSteps = (skipVoice ? 0 : 1) + (skipCut ? 0 : 1) + 1;
+  const allResults = [];
 
-  // ── STEP 1: DOWNLOAD + TRANSCRIERE ───────────────────────
-  setStep(1, 'active', 'Se descarcă și transcrie videoclipul...');
-  setRibbon('Download + Transcriere...', `Step 1 · ${quality}p · nu închide pagina`, 0, totalSteps);
-  setStepBody(1, `<div class="status-info flex items-center gap-2 pulse text-sm"><i class="fas fa-circle-notch spin"></i> Se descarcă video ${quality}p și se extrage transcrierea în paralel...</div>`);
+  // ── Loop fiecare URL ───────────────────────────────────────
+  for (let urlIdx = 0; urlIdx < urlInputs.length; urlIdx++) {
+    const url = urlInputs[urlIdx];
+    const batchLabel = urlInputs.length > 1 ? ` (${urlIdx + 1}/${urlInputs.length})` : '';
+    const urlRes = {};
 
-  try {
-    const res = await fetch(`${API_BASE}/api/process-yt`, {
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':`Bearer ${authToken}`},
-      body: JSON.stringify({ url, quality, limba })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Eroare server');
+    resetSteps();
 
-    pipelineResults.videoUrl = data.downloadUrl;
-    pipelineResults.transcript = data.translatedText || data.originalText || null;
-
-    // Update credite nav
-    if (data.creditsLeft !== undefined) document.getElementById('nav-credits').textContent = Math.floor(data.creditsLeft);
-    if (data.voice_characters !== undefined) document.getElementById('nav-chars').textContent = (data.voice_characters||0).toLocaleString();
-
-    const dlHtml = `
-      <div class="flex flex-col gap-3">
-        <a href="${data.downloadUrl}" class="w-full flex items-center justify-center gap-2 bg-slate-900 hover:bg-viralio-600 text-white px-5 py-2.5 rounded-xl font-bold shadow-md transition-all text-sm" download>
-          <i class="fas fa-download text-indigo-400"></i> Descarcă Video MP4 ${quality}p
-        </a>
-        ${data.translatedText ? `
-        <div class="grid grid-cols-2 gap-2">
-          <button onclick="toggleTranscript('orig')" class="bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold py-2 rounded-lg text-xs transition-colors"><i class="fas fa-closed-captioning text-slate-400 mr-1"></i>Original</button>
-          <button onclick="toggleTranscript('trans')" class="bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 text-indigo-700 font-semibold py-2 rounded-lg text-xs transition-colors"><i class="fas fa-language mr-1"></i>Traducere (${limba})</button>
-        </div>
-        <div id="transcript-orig" class="hidden bg-slate-50 rounded-xl p-4 border border-slate-200 relative">
-          <button onclick="copyText('transcript-orig-text', this)" class="absolute top-2 right-2 text-xs bg-white border border-slate-200 text-slate-600 px-2 py-1 rounded-lg hover:bg-slate-100 font-bold"><i class="fas fa-copy"></i></button>
-          <p class="text-[0.65rem] font-bold text-slate-400 uppercase mb-2">Transcript Original</p>
-          <p id="transcript-orig-text" class="text-sm text-slate-700 max-h-52 overflow-y-auto whitespace-pre-wrap leading-relaxed pr-2">${escHtml(data.originalText||'')}</p>
-        </div>
-        <div id="transcript-trans" class="hidden bg-indigo-50 rounded-xl p-4 border border-indigo-100 relative">
-          <button onclick="copyText('transcript-trans-text', this)" class="absolute top-2 right-2 text-xs bg-white border border-indigo-200 text-indigo-600 px-2 py-1 rounded-lg hover:bg-indigo-100 font-bold"><i class="fas fa-copy"></i></button>
-          <p class="text-[0.65rem] font-bold text-indigo-400 uppercase mb-2">Traducere · ${limba}</p>
-          <p id="transcript-trans-text" class="text-sm text-slate-800 font-medium max-h-52 overflow-y-auto whitespace-pre-wrap leading-relaxed pr-2">${escHtml(data.translatedText||'')}</p>
-        </div>` : ''}
-      </div>`;
-    setStepBody(1, dlHtml);
-    setStep(1, 'done', `Video ${quality}p descărcat ✓`);
-    setRibbon('Download complet!', 'Continuăm cu voice-over...', 1, totalSteps);
-
-  } catch(e) {
-    setStep(1, 'error', e.message);
-    setStepBody(1, `<div class="status-error text-sm flex items-start gap-2"><i class="fas fa-circle-xmark mt-0.5 shrink-0"></i><div>${e.message}</div></div>`);
-    btn.disabled = false; btn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> PORNEȘTE PIPELINE · <span class="bg-slate-200 rounded-md px-1.5 py-0.5 text-xs font-black text-slate-600">2 credite</span>';
-    return;
-  }
-
-  // ── STEP 2: VOICE ─────────────────────────────────────────
-  if (!skipVoice) {
-    let textToSpeak = manualText || pipelineResults.transcript;
-
-    if (!textToSpeak) {
-      setStep(2, 'error', 'Nicio sursă de text');
-      setStepBody(2, `<div class="status-error text-sm">Nu există transcript pentru voice-over. Activează "Text manual" și scrie textul.</div>`);
-    } else {
-      setStep(2, 'active', `Generare cu ${selectedVoice.name}...`);
-      setRibbon(`Voice-over cu ${selectedVoice.name}...`, `Step 2 · ${textToSpeak.length} chars · poate dura 30-60s`, 1, totalSteps);
-      setStepBody(2, `<div class="status-info flex items-center gap-2 pulse text-sm"><i class="fas fa-circle-notch spin"></i> Se generează voice-over cu ${selectedVoice.name} (${textToSpeak.length} caractere)...</div>`);
-
-      // Traducere suplimentară dacă e nevoie
-      if (!manualText && pipelineResults.transcript) {
-        try {
-          const tRes = await fetch(`${API_BASE}/api/translate`, { method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${authToken}`}, body: JSON.stringify({ text: textToSpeak, limba }) });
-          const tData = await tRes.json();
-          if (tRes.ok && tData.translated) textToSpeak = tData.translated;
-        } catch(e) {}
-      }
-
-      try {
-        const vRes = await fetch(`${API_BASE}/api/generate`, {
-          method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${authToken}`},
-          body: JSON.stringify({ text: textToSpeak, voiceId: selectedVoice.id, voice: selectedVoice.name, stability: parseFloat(document.getElementById('sl-stability').value), similarity_boost: parseFloat(document.getElementById('sl-similarity').value), speed: parseFloat(document.getElementById('sl-speed').value) })
-        });
-        const vData = await vRes.json();
-        if (!vRes.ok) throw new Error(vData.error || 'Eroare voice');
-
-        pipelineResults.voiceUrl = vData.audioUrl;
-        if (vData.remaining_chars !== undefined) document.getElementById('nav-chars').textContent = (vData.remaining_chars||0).toLocaleString();
-
-        setStepBody(2, `<div class="flex flex-col gap-3">
-          <audio controls src="${vData.audioUrl}" class="w-full rounded-xl" style="filter:none"></audio>
-          <a href="${vData.audioUrl}" class="flex items-center justify-center gap-2 bg-slate-50 border border-slate-200 hover:border-indigo-300 text-slate-700 font-bold py-2 rounded-xl text-sm transition-colors" download><i class="fas fa-download text-indigo-400"></i> Descarcă MP3</a>
-        </div>`);
-        setStep(2, 'done', `Voice generat cu ${selectedVoice.name} ✓`);
-        setRibbon('Voice gata!', 'Rulăm Smart Cut...', 2, totalSteps);
-
-      } catch(e) {
-        setStep(2, 'error', e.message);
-        setStepBody(2, `<div class="status-error text-sm">${e.message}</div>`);
-      }
-    }
-  } else {
-    setStep(2, 'skip', 'Sărit la cerere');
-  }
-
-  // ── STEP 3: SMART CUT ─────────────────────────────────────
-  const audioForCut = pipelineResults.voiceUrl;
-  if (!skipCut && audioForCut) {
-    setStep(3, 'active', 'Se elimină pauzele...');
-    setRibbon('Smart Cut...', 'Step final · elimină pauzele din audio', 2, totalSteps);
-    setStepBody(3, `<div class="status-info flex items-center gap-2 pulse text-sm"><i class="fas fa-circle-notch spin"></i> Smart Cut procesează audio-ul...</div>`);
+    // ── STEP 1: DOWNLOAD + TRANSCRIERE ──────────────────────
+    setStep(1, 'active', `Se descarcă și transcrie videoclipul${batchLabel}...`);
+    setRibbon(`Download + Transcriere${batchLabel}`, `Step 1 · ${quality}p · nu închide pagina`, 0, totalSteps);
+    setStepBody(1, `<div class="status-info flex items-center gap-2 pulse text-sm"><i class="fas fa-circle-notch spin"></i> Se descarcă video ${quality}p și se extrage transcrierea în paralel...</div>`);
 
     try {
-      const audioBlob = await fetch(audioForCut).then(r => r.blob());
-      const audioFile = new File([audioBlob], 'audio.mp3', { type:'audio/mpeg' });
-      const formData = new FormData();
-      formData.append('file', audioFile);
-      formData.append('minSilence', document.getElementById('sl-silence').value);
-      formData.append('threshold', document.getElementById('sl-thresh').value + 'dB');
+      const res = await fetch(`${API_BASE}/api/process-yt`, {
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':`Bearer ${authToken}`},
+        body: JSON.stringify({ url, quality, limba })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Eroare server');
 
-      const scRes = await fetch(`${API_BASE}/api/smart-cut`, { method:'POST', headers:{'Authorization':`Bearer ${authToken}`}, body: formData });
-      const scData = await scRes.json();
-      if (!scRes.ok) throw new Error(scData.error || 'Eroare smart cut');
+      urlRes.videoUrl     = data.downloadUrl;
+      urlRes.originalText = data.originalText;
+      urlRes.translatedText = data.translatedText;
+      urlRes.transcript   = data.translatedText || data.originalText || null;
 
-      pipelineResults.cutUrl = scData.downloadUrl;
-      if (scData.creditsLeft !== undefined) document.getElementById('nav-credits').textContent = Math.floor(scData.creditsLeft);
+      if (data.creditsLeft !== undefined) document.getElementById('nav-credits').textContent = Math.floor(data.creditsLeft);
+      if (data.voice_characters !== undefined) document.getElementById('nav-chars').textContent = (data.voice_characters||0).toLocaleString();
 
-      setStepBody(3, `<div class="flex flex-col gap-3">
-        <audio controls src="${scData.downloadUrl}" class="w-full rounded-xl"></audio>
-        <a href="${scData.downloadUrl}" class="flex items-center justify-center gap-2 bg-slate-50 border border-slate-200 hover:border-green-300 text-slate-700 font-bold py-2 rounded-xl text-sm transition-colors" download><i class="fas fa-download text-green-500"></i> Descarcă Audio Final</a>
-      </div>`);
-      setStep(3, 'done', 'Smart Cut finalizat ✓');
+      const transcriptHtml = buildTranscriptHtml(data, limba, urlIdx);
+      const dlHtml = `
+        <div class="flex flex-col gap-3">
+          <a href="${data.downloadUrl}" class="w-full flex items-center justify-center gap-2 bg-slate-900 hover:bg-viralio-600 text-white px-5 py-2.5 rounded-xl font-bold shadow-md transition-all text-sm" download>
+            <i class="fas fa-download text-indigo-400"></i> Descarcă Video MP4 ${quality}p
+          </a>
+          ${transcriptHtml}
+        </div>`;
+      setStepBody(1, dlHtml);
+      setStep(1, 'done', `Video ${quality}p descărcat ✓`);
+      setRibbon('Download complet!', 'Continuăm cu voice-over...', 1, totalSteps);
 
     } catch(e) {
-      setStep(3, 'error', e.message);
-      setStepBody(3, `<div class="status-error text-sm">${e.message}</div>`);
+      setStep(1, 'error', e.message);
+      setStepBody(1, `<div class="status-error text-sm flex items-start gap-2"><i class="fas fa-circle-xmark mt-0.5 shrink-0"></i><div>${e.message}</div></div>`);
+      allResults.push({ error: e.message, url });
+      continue; // trece la URL-ul următor
     }
-  } else if (skipCut) {
-    setStep(3, 'skip', 'Sărit la cerere');
-  } else {
-    setStep(3, 'skip', 'Fără audio generat');
-  }
 
-  // ── FINAL ─────────────────────────────────────────────────
+    // ── STEP 2: VOICE ────────────────────────────────────────
+    if (!skipVoice) {
+      let textToSpeak = manualText || urlRes.transcript;
+
+      if (!textToSpeak) {
+        setStep(2, 'error', 'Nicio sursă de text');
+        setStepBody(2, `<div class="status-error text-sm">Nu există transcript pentru voice-over. Activează "Text manual" și scrie textul.</div>`);
+      } else {
+        setStep(2, 'active', `Generare cu ${selectedVoice.name}${batchLabel}...`);
+        setRibbon(`Voice-over cu ${selectedVoice.name}${batchLabel}`, `Step 2 · ${textToSpeak.length} chars · poate dura 30-60s`, 1, totalSteps);
+        setStepBody(2, `<div class="status-info flex items-center gap-2 pulse text-sm"><i class="fas fa-circle-notch spin"></i> Se generează voice-over cu ${selectedVoice.name} (${textToSpeak.length} caractere)...</div>`);
+
+        // Traducere suplimentară dacă e nevoie
+        if (!manualText && urlRes.transcript) {
+          try {
+            const tRes = await fetch(`${API_BASE}/api/translate`, {
+              method:'POST',
+              headers:{'Content-Type':'application/json','Authorization':`Bearer ${authToken}`},
+              body: JSON.stringify({ text: textToSpeak, limba })
+            });
+            const tData = await tRes.json();
+            if (tRes.ok && tData.translated) textToSpeak = tData.translated;
+          } catch(e) {}
+        }
+
+        try {
+          const vRes = await fetch(`${API_BASE}/api/generate`, {
+            method:'POST',
+            headers:{'Content-Type':'application/json','Authorization':`Bearer ${authToken}`},
+            body: JSON.stringify({
+              text: textToSpeak,
+              voiceId: selectedVoice.id,
+              voice: selectedVoice.name,
+              stability: parseFloat(document.getElementById('sl-stability').value),
+              similarity_boost: parseFloat(document.getElementById('sl-similarity').value),
+              speed: parseFloat(document.getElementById('sl-speed').value)
+            })
+          });
+          const vData = await vRes.json();
+          if (!vRes.ok) throw new Error(vData.error || 'Eroare voice');
+
+          urlRes.voiceUrl = vData.audioUrl;
+          if (vData.remaining_chars !== undefined) document.getElementById('nav-chars').textContent = (vData.remaining_chars||0).toLocaleString();
+
+          setStepBody(2, `<div class="flex flex-col gap-3">
+            <audio controls src="${vData.audioUrl}" class="w-full rounded-xl" style="filter:none"></audio>
+            <a href="${vData.audioUrl}" class="flex items-center justify-center gap-2 bg-slate-50 border border-slate-200 hover:border-indigo-300 text-slate-700 font-bold py-2 rounded-xl text-sm transition-colors" download><i class="fas fa-download text-indigo-400"></i> Descarcă MP3</a>
+          </div>`);
+          setStep(2, 'done', `Voice generat cu ${selectedVoice.name} ✓`);
+          setRibbon('Voice gata!', 'Rulăm Smart Cut...', 2, totalSteps);
+
+        } catch(e) {
+          setStep(2, 'error', e.message);
+          setStepBody(2, `<div class="status-error text-sm">${e.message}</div>`);
+        }
+      }
+    } else {
+      setStep(2, 'skip', 'Sărit la cerere');
+    }
+
+    // ── STEP 3: SMART CUT ────────────────────────────────────
+    const audioForCut = urlRes.voiceUrl;
+    if (!skipCut && audioForCut) {
+      setStep(3, 'active', 'Se elimină pauzele...');
+      setRibbon('Smart Cut...', 'Step final · elimină pauzele din audio', 2, totalSteps);
+      setStepBody(3, `<div class="status-info flex items-center gap-2 pulse text-sm"><i class="fas fa-circle-notch spin"></i> Smart Cut procesează audio-ul...</div>`);
+
+      try {
+        const audioBlob = await fetch(audioForCut).then(r => r.blob());
+        const audioFile = new File([audioBlob], 'audio.mp3', { type:'audio/mpeg' });
+        const formData = new FormData();
+        formData.append('file', audioFile);
+        formData.append('minSilence', document.getElementById('sl-silence').value);
+        formData.append('threshold', document.getElementById('sl-thresh').value + 'dB');
+
+        const scRes = await fetch(`${API_BASE}/api/smart-cut`, {
+          method:'POST',
+          headers:{'Authorization':`Bearer ${authToken}`},
+          body: formData
+        });
+        const scData = await scRes.json();
+        if (!scRes.ok) throw new Error(scData.error || 'Eroare smart cut');
+
+        urlRes.cutUrl = scData.downloadUrl;
+        if (scData.creditsLeft !== undefined) document.getElementById('nav-credits').textContent = Math.floor(scData.creditsLeft);
+
+        setStepBody(3, `<div class="flex flex-col gap-3">
+          <audio controls src="${scData.downloadUrl}" class="w-full rounded-xl"></audio>
+          <a href="${scData.downloadUrl}" class="flex items-center justify-center gap-2 bg-slate-50 border border-slate-200 hover:border-green-300 text-slate-700 font-bold py-2 rounded-xl text-sm transition-colors" download><i class="fas fa-download text-green-500"></i> Descarcă Audio Final</a>
+        </div>`);
+        setStep(3, 'done', 'Smart Cut finalizat ✓');
+
+      } catch(e) {
+        setStep(3, 'error', e.message);
+        setStepBody(3, `<div class="status-error text-sm">${e.message}</div>`);
+      }
+    } else if (skipCut) {
+      setStep(3, 'skip', 'Sărit la cerere');
+    } else {
+      setStep(3, 'skip', 'Fără audio generat');
+    }
+
+    allResults.push(urlRes);
+  } // ── end URL loop ──
+
+  // ── FINAL RESULTS ─────────────────────────────────────────
   const finalBody = document.getElementById('final-body');
-  const items = [];
-  if (pipelineResults.videoUrl) items.push(`<a href="${pipelineResults.videoUrl}" class="flex items-center gap-3 bg-slate-900 hover:bg-viralio-600 text-white px-5 py-3 rounded-xl font-bold transition-all text-sm shadow-md" download><i class="fas fa-film text-indigo-300"></i> Video MP4 ${quality}p</a>`);
-  if (pipelineResults.voiceUrl) items.push(`<a href="${pipelineResults.voiceUrl}" class="flex items-center gap-3 bg-indigo-50 border border-indigo-200 hover:border-indigo-400 text-indigo-800 px-5 py-3 rounded-xl font-bold transition-all text-sm" download><i class="fas fa-microphone-lines text-indigo-500"></i> Voice-over MP3</a>`);
-  if (pipelineResults.cutUrl)   items.push(`<a href="${pipelineResults.cutUrl}" class="flex items-center gap-3 bg-green-50 border border-green-200 hover:border-green-400 text-green-800 px-5 py-3 rounded-xl font-bold transition-all text-sm" download><i class="fas fa-scissors text-green-500"></i> Smart Cut MP3</a>`);
+  finalBody.innerHTML = '';
+  let hasAny = false;
 
-  if (items.length > 0) {
-    finalBody.innerHTML = items.join('');
+  allResults.forEach((res, i) => {
+    if (res.error) return;
+    const items = [];
+    if (res.videoUrl) items.push(`<a href="${res.videoUrl}" class="flex items-center gap-3 bg-slate-900 hover:bg-viralio-600 text-white px-5 py-3 rounded-xl font-bold transition-all text-sm shadow-md" download><i class="fas fa-film text-indigo-300"></i> Video MP4 ${quality}p</a>`);
+    if (res.voiceUrl) items.push(`<a href="${res.voiceUrl}" class="flex items-center gap-3 bg-indigo-50 border border-indigo-200 hover:border-indigo-400 text-indigo-800 px-5 py-3 rounded-xl font-bold transition-all text-sm" download><i class="fas fa-microphone-lines text-indigo-500"></i> Voice-over MP3</a>`);
+    if (res.cutUrl)   items.push(`<a href="${res.cutUrl}" class="flex items-center gap-3 bg-green-50 border border-green-200 hover:border-green-400 text-green-800 px-5 py-3 rounded-xl font-bold transition-all text-sm" download><i class="fas fa-scissors text-green-500"></i> Smart Cut MP3</a>`);
+    if (items.length === 0) return;
+    hasAny = true;
+
+    // Label pentru batch
+    const label = urlInputs.length > 1
+      ? `<div class="text-[0.6rem] font-bold text-slate-400 uppercase tracking-wide pb-1.5 border-b border-slate-100 mb-1">Video ${i + 1}</div>`
+      : '';
+
+    const block = document.createElement('div');
+    block.className = 'grid grid-cols-1 sm:grid-cols-2 gap-2';
+    block.innerHTML = label + items.join('');
+    finalBody.appendChild(block);
+  });
+
+  // FIX #3: buton Caption Remover după ce se termină tot
+  if (hasAny) {
+    const capBtn = document.createElement('div');
+    capBtn.className = 'pt-1';
+    capBtn.innerHTML = `
+      <a href="https://captions.viralio.ro/" target="_blank"
+         class="w-full flex items-center justify-center gap-2 bg-gradient-viralio hover:opacity-90 text-white px-5 py-3 rounded-xl font-bold text-sm shadow-md transition-all">
+        <i class="fas fa-closed-captioning"></i> Caption Remover
+        <i class="fas fa-arrow-right text-xs opacity-70"></i>
+      </a>`;
+    finalBody.appendChild(capBtn);
+
     document.getElementById('final-result').classList.remove('hidden');
     document.getElementById('final-result').scrollIntoView({ behavior:'smooth', block:'nearest' });
   }
@@ -644,20 +797,6 @@ async function runPipeline() {
 }
 
 // ── UTILS ─────────────────────────────────────────────────────
-function toggleTranscript(type) {
-  document.getElementById('transcript-orig').classList.toggle('hidden', type !== 'orig' || !document.getElementById('transcript-orig').classList.contains('hidden'));
-  document.getElementById('transcript-trans').classList.toggle('hidden', type !== 'trans' || !document.getElementById('transcript-trans').classList.contains('hidden'));
-  if (type === 'orig') {
-    const el = document.getElementById('transcript-orig');
-    el.classList.toggle('hidden');
-    document.getElementById('transcript-trans').classList.add('hidden');
-  } else {
-    const el = document.getElementById('transcript-trans');
-    el.classList.toggle('hidden');
-    document.getElementById('transcript-orig').classList.add('hidden');
-  }
-}
-
 function copyText(id, btn) {
   const text = document.getElementById(id)?.innerText;
   if (!text) return;
@@ -670,12 +809,13 @@ function copyText(id, btn) {
 
 function escHtml(s) { const d=document.createElement('div'); d.appendChild(document.createTextNode(s)); return d.innerHTML; }
 
-// Paste URL cu auto-detect
-document.getElementById('yt-url').addEventListener('paste', (e) => {
+// Paste URL cu auto-detect — compatibil cu batch
+document.getElementById('url-list').addEventListener('paste', (e) => {
+  const input = e.target.closest('.url-input');
+  if (!input) return;
   setTimeout(() => {
-    const val = document.getElementById('yt-url').value;
-    if (/youtu/.test(val)) document.getElementById('yt-url').classList.add('border-indigo-300','bg-indigo-50');
-    else document.getElementById('yt-url').classList.remove('border-indigo-300','bg-indigo-50');
+    if (/youtu/.test(input.value)) { input.style.borderColor='#a5b4fc'; input.style.background='#eef2ff'; }
+    else { input.style.borderColor=''; input.style.background=''; }
   }, 50);
 });
 </script>
