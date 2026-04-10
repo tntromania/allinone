@@ -404,6 +404,7 @@ setInterval(() => {
     });
 }, 3600000);
 
-app.get('*', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'index.html')));
+// ✅ Express v5 — sintaxa corectă
+app.get('/{*path}', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'index.html')));
 
 app.listen(PORT, () => console.log(`🚀 Viralio Pipeline rulează pe portul ${PORT}!`));
