@@ -28,12 +28,6 @@ tailwind.config = {
   .modal-content{background:#fff;border-radius:28px;padding:40px;text-align:center;max-width:420px;width:90%;transform:translateY(20px);transition:.4s;position:relative}
   #login-modal.show .modal-content{transform:translateY(0)}
 
-  /* STEP CARD */
-  .step-card{transition:all .3s ease}
-  .step-card.active{border-color:#6366f1!important;box-shadow:0 0 0 3px rgba(99,102,241,.1)}
-  .step-card.done{border-color:#10b981!important}
-  .step-card.error{border-color:#f87171!important}
-
   /* VOICE GRID */
   .vcard{transition:all .2s;cursor:pointer;border:1.5px solid #e2e8f0;border-radius:14px;padding:10px;background:#f8fafc}
   .vcard:hover{border-color:#6366f1;background:#eef2ff;transform:translateY(-2px)}
@@ -67,6 +61,20 @@ tailwind.config = {
   .url-row { position: relative; }
   .url-row .remove-btn { position:absolute; right:12px; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; color:#cbd5e1; transition:color .2s; padding:4px; }
   .url-row .remove-btn:hover { color:#f87171; }
+
+  /* VIDEO CARD */
+  .video-card { transition: box-shadow .2s; }
+  .video-card:hover { box-shadow: 0 4px 20px rgba(99,102,241,.08); }
+
+  /* FADE IN for result sections */
+  @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+  .fade-in { animation: fadeIn .35s ease both; }
+
+  /* CHEVRON TRANSITION */
+  .chevron-anim { transition: transform .25s ease; }
+
+  /* CONFIG CARD */
+  .config-card-body { transition: max-height .3s ease, opacity .3s ease; }
 </style>
 </head>
 <body class="md:p-4">
@@ -77,7 +85,7 @@ tailwind.config = {
 
 <div class="bg-white md:rounded-[1.5rem] min-h-screen shadow-xl overflow-hidden relative pb-24 border border-slate-100">
 
-  <!-- NAV — FIX #5: mai scurtă, max-w-xl centrat -->
+  <!-- NAV -->
   <div class="sticky top-0 z-50 flex w-full justify-center px-2 py-4 md:p-2">
     <nav class="w-full max-w-xl rounded-2xl border border-slate-200 bg-white/80 backdrop-blur-xl shadow-sm px-4 py-2.5 flex justify-between items-center">
       <a class="flex items-center font-black text-lg tracking-tight text-slate-900" href="https://viralio.ro">
@@ -147,14 +155,13 @@ tailwind.config = {
       <div class="flex items-center gap-3 px-5 py-4 border-b border-slate-100 bg-slate-50">
         <div class="w-8 h-8 rounded-xl bg-gradient-viralio flex items-center justify-center text-white text-sm shrink-0"><i class="fab fa-youtube"></i></div>
         <div>
-          <!-- FIX #1: batch label -->
-          <div class="font-bold text-slate-800 text-sm">Link-uri YouTube <span class="text-slate-400 font-medium text-xs">— până la 5 odată</span></div>
+          <div class="font-bold text-slate-800 text-sm">Link-uri YouTube <span class="text-slate-400 font-medium text-xs">— până la 5 odată · procesare paralelă</span></div>
           <div class="text-[0.65rem] text-slate-400 font-medium">Paste link-uri · procesare 1080p automată · batch</div>
         </div>
       </div>
       <div class="p-5 space-y-4">
 
-        <!-- FIX #1: BATCH URL LIST -->
+        <!-- BATCH URL LIST -->
         <div>
           <div id="url-list" class="space-y-2">
             <div class="url-row">
@@ -228,32 +235,17 @@ tailwind.config = {
       </div>
     </div>
 
-    <!-- ── STEP 1: DOWNLOAD ── -->
-    <div id="step-1" class="step-card bg-white border border-slate-200 rounded-[1.25rem] shadow-sm overflow-hidden">
-      <div class="flex items-center gap-3 px-5 py-3.5 border-b border-slate-100">
-        <div id="step-1-icon" class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 text-xs font-black shrink-0">1</div>
-        <div class="flex-1 min-w-0">
-          <div class="font-bold text-slate-800 text-sm">Download Video 1080p</div>
-          <div id="step-1-status" class="text-[0.65rem] text-slate-400 font-medium mt-0.5">În așteptare</div>
-        </div>
-        <div id="step-1-badge" class="text-[0.6rem] font-bold uppercase tracking-wide px-2 py-1 rounded-md bg-slate-100 text-slate-400 shrink-0">wait</div>
-      </div>
-      <div id="step-1-body" class="hidden px-5 py-4"></div>
-    </div>
-
-    <!-- ── STEP 2: VOICE ── -->
-    <div id="step-2" class="step-card bg-white border border-slate-200 rounded-[1.25rem] shadow-sm overflow-hidden">
-      <div class="flex items-center gap-3 px-5 py-3.5 border-b border-slate-100">
-        <div id="step-2-icon" class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 text-xs font-black shrink-0">2</div>
+    <!-- ── VOICE CONFIG CARD ── -->
+    <div class="bg-white border border-slate-200 rounded-[1.25rem] shadow-sm overflow-hidden">
+      <div class="flex items-center gap-3 px-5 py-3.5 border-b border-slate-100 cursor-pointer select-none" onclick="toggleVoiceConfig()">
+        <div class="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-500 text-sm shrink-0"><i class="fas fa-microphone-lines"></i></div>
         <div class="flex-1 min-w-0">
           <div class="font-bold text-slate-800 text-sm">Voice Studio AI</div>
-          <div id="step-2-status" class="text-[0.65rem] text-slate-400 font-medium mt-0.5">În așteptare</div>
+          <div id="voice-config-sel" class="text-[0.65rem] text-slate-400 font-medium mt-0.5">Rachel selectată · click pentru configurare</div>
         </div>
-        <div id="step-2-badge" class="text-[0.6rem] font-bold uppercase tracking-wide px-2 py-1 rounded-md bg-slate-100 text-slate-400 shrink-0">wait</div>
+        <i id="voice-config-chevron" class="fas fa-chevron-down text-slate-400 text-xs chevron-anim"></i>
       </div>
-
-      <!-- VOICE CONFIG -->
-      <div class="px-5 py-4 bg-slate-50 border-b border-slate-100">
+      <div id="voice-config-body" class="px-5 py-4 bg-slate-50 border-b border-slate-100">
         <div id="voice-grid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 mb-3"></div>
         <div class="grid grid-cols-3 gap-3">
           <div>
@@ -265,29 +257,24 @@ tailwind.config = {
             <input type="range" id="sl-similarity" min="0" max="1" step="0.05" value="0.75" oninput="document.getElementById('val-similarity').textContent=parseFloat(this.value).toFixed(2)">
           </div>
           <div>
-            <!-- FIX #4: speed 0.70 → 1.20 conform API -->
             <div class="flex justify-between mb-1"><label class="text-[0.6rem] font-bold text-slate-400 uppercase tracking-wide">Viteză</label><span id="val-speed" class="text-[0.65rem] font-bold text-indigo-600">1.00</span></div>
             <input type="range" id="sl-speed" min="0.70" max="1.20" step="0.05" value="1.00" oninput="document.getElementById('val-speed').textContent=parseFloat(this.value).toFixed(2)">
           </div>
         </div>
       </div>
-
-      <div id="step-2-body" class="hidden px-5 py-4"></div>
     </div>
 
-    <!-- ── STEP 3: SMART CUT ── -->
-    <div id="step-3" class="step-card bg-white border border-slate-200 rounded-[1.25rem] shadow-sm overflow-hidden">
-      <div class="flex items-center gap-3 px-5 py-3.5 border-b border-slate-100">
-        <div id="step-3-icon" class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 text-xs font-black shrink-0">3</div>
+    <!-- ── SMART CUT CONFIG CARD ── -->
+    <div class="bg-white border border-slate-200 rounded-[1.25rem] shadow-sm overflow-hidden">
+      <div class="flex items-center gap-3 px-5 py-3.5 border-b border-slate-100 cursor-pointer select-none" onclick="toggleCutConfig()">
+        <div class="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center text-green-500 text-sm shrink-0"><i class="fas fa-scissors"></i></div>
         <div class="flex-1 min-w-0">
           <div class="font-bold text-slate-800 text-sm">Smart Cut <span class="text-slate-400 font-medium">— elimină pauzele</span></div>
-          <div id="step-3-status" class="text-[0.65rem] text-slate-400 font-medium mt-0.5">În așteptare</div>
+          <div class="text-[0.65rem] text-slate-400 font-medium mt-0.5">Configurare prag de tăiere · click pentru detalii</div>
         </div>
-        <div id="step-3-badge" class="text-[0.6rem] font-bold uppercase tracking-wide px-2 py-1 rounded-md bg-slate-100 text-slate-400 shrink-0">wait</div>
+        <i id="cut-config-chevron" class="fas fa-chevron-down text-slate-400 text-xs chevron-anim"></i>
       </div>
-
-      <!-- SMART CUT CONFIG -->
-      <div class="px-5 py-4 bg-slate-50 border-b border-slate-100 grid grid-cols-2 gap-3">
+      <div id="cut-config-body" class="px-5 py-4 bg-slate-50 border-b border-slate-100 grid grid-cols-2 gap-3">
         <div>
           <div class="flex justify-between mb-1"><label class="text-[0.6rem] font-bold text-slate-400 uppercase tracking-wide">Min. pauză</label><span id="val-silence" class="text-[0.65rem] font-bold text-indigo-600">0.35s</span></div>
           <input type="range" id="sl-silence" min="0.1" max="2" step="0.05" value="0.35" oninput="document.getElementById('val-silence').textContent=parseFloat(this.value).toFixed(2)+'s'">
@@ -297,22 +284,10 @@ tailwind.config = {
           <input type="range" id="sl-thresh" min="-60" max="-20" step="1" value="-45" oninput="document.getElementById('val-thresh').textContent=this.value+'dB'">
         </div>
       </div>
-
-      <div id="step-3-body" class="hidden px-5 py-4"></div>
     </div>
 
-    <!-- ── FINAL RESULT ── -->
-    <div id="final-result" class="hidden bg-white border border-green-200 rounded-[1.25rem] shadow-sm overflow-hidden">
-      <div class="bg-green-50 px-5 py-4 flex items-center gap-3 border-b border-green-100">
-        <div class="w-9 h-9 rounded-xl bg-green-100 flex items-center justify-center text-green-600 text-lg shrink-0"><i class="fas fa-check-circle"></i></div>
-        <div>
-          <div class="font-extrabold text-green-800 text-sm">Pipeline Finalizat!</div>
-          <div class="text-xs text-green-600 mt-0.5">Toate fișierele sunt gata pentru download</div>
-        </div>
-      </div>
-      <!-- FIX #3: caption remover + per-video results added dynamically -->
-      <div id="final-body" class="p-5 space-y-3"></div>
-    </div>
+    <!-- ── BATCH CONTAINER — carduri per URL apar aici ── -->
+    <div id="batch-container" class="hidden space-y-3"></div>
 
   </div><!-- end max-w-3xl -->
 
@@ -398,9 +373,8 @@ window.addEventListener('load', async () => {
   initUrlRows();
 });
 
-// ── FIX #1: BATCH URL MANAGEMENT ─────────────────────────────
+// ── BATCH URL MANAGEMENT ─────────────────────────────────────
 function initUrlRows() {
-  // style the first row
   styleUrlRow(document.querySelector('.url-row'));
 }
 
@@ -440,38 +414,29 @@ function updateUrlUI() {
   const list = document.getElementById('url-list');
   const rows = list.querySelectorAll('.url-row');
   const addBtn = document.getElementById('add-url-btn');
-  // Show/hide remove buttons (only show if >1 row)
   rows.forEach(row => {
     const rb = row.querySelector('.remove-btn');
     if (rb) rb.style.display = rows.length > 1 ? 'block' : 'none';
   });
-  // Hide add button if at max
   addBtn.style.display = rows.length >= 5 ? 'none' : 'flex';
 }
 
+// ── CONFIG CARD TOGGLES ───────────────────────────────────────
+function toggleVoiceConfig() {
+  const body = document.getElementById('voice-config-body');
+  const chevron = document.getElementById('voice-config-chevron');
+  const hidden = body.classList.toggle('hidden');
+  chevron.style.transform = hidden ? 'rotate(-90deg)' : '';
+}
+
+function toggleCutConfig() {
+  const body = document.getElementById('cut-config-body');
+  const chevron = document.getElementById('cut-config-chevron');
+  const hidden = body.classList.toggle('hidden');
+  chevron.style.transform = hidden ? 'rotate(-90deg)' : '';
+}
+
 // ── UI HELPERS ────────────────────────────────────────────────
-function setStep(n, state, msg) {
-  const card = document.getElementById(`step-${n}`);
-  const icon = document.getElementById(`step-${n}-icon`);
-  const status = document.getElementById(`step-${n}-status`);
-  const badge = document.getElementById(`step-${n}-badge`);
-
-  card.className = 'step-card bg-white border rounded-[1.25rem] shadow-sm overflow-hidden';
-  if (state === 'active')  { card.classList.add('border-indigo-300','active'); icon.className='w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600 text-xs shrink-0'; icon.innerHTML='<i class="fas fa-circle-notch spin"></i>'; badge.className='text-[0.6rem] font-bold uppercase tracking-wide px-2 py-1 rounded-md bg-amber-100 text-amber-600 shrink-0'; badge.textContent='running'; }
-  else if (state === 'done')   { card.classList.add('border-green-200','done'); icon.className='w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center text-green-600 text-xs shrink-0'; icon.innerHTML='<i class="fas fa-check"></i>'; badge.className='text-[0.6rem] font-bold uppercase tracking-wide px-2 py-1 rounded-md bg-green-100 text-green-700 shrink-0'; badge.textContent='done'; }
-  else if (state === 'error')  { card.classList.add('border-red-200','error'); icon.className='w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center text-red-500 text-xs shrink-0'; icon.innerHTML='<i class="fas fa-xmark"></i>'; badge.className='text-[0.6rem] font-bold uppercase tracking-wide px-2 py-1 rounded-md bg-red-100 text-red-500 shrink-0'; badge.textContent='error'; }
-  else if (state === 'skip')   { card.classList.add('border-slate-200'); icon.className='w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 text-xs shrink-0'; icon.innerHTML='<i class="fas fa-forward"></i>'; badge.className='text-[0.6rem] font-bold uppercase tracking-wide px-2 py-1 rounded-md bg-slate-100 text-slate-400 shrink-0'; badge.textContent='skip'; }
-  else { card.classList.add('border-slate-200'); }
-
-  if (msg) status.textContent = msg;
-}
-
-function setStepBody(n, html) {
-  const body = document.getElementById(`step-${n}-body`);
-  body.innerHTML = html;
-  body.classList.remove('hidden');
-}
-
 function setRibbon(title, sub, done, total) {
   const ribbon = document.getElementById('ribbon');
   ribbon.classList.remove('hidden');
@@ -481,15 +446,6 @@ function setRibbon(title, sub, done, total) {
 }
 
 function hideRibbon() { document.getElementById('ribbon').classList.add('hidden'); }
-
-function resetSteps() {
-  for (let i = 1; i <= 3; i++) {
-    setStep(i, 'wait', 'În așteptare');
-    document.getElementById(`step-${i}-body`).classList.add('hidden');
-    document.getElementById(`step-${i}-body`).innerHTML = '';
-  }
-  hideRibbon();
-}
 
 function toggleManualText() {
   const show = document.getElementById('manual-text-toggle').checked;
@@ -519,13 +475,16 @@ function buildVoiceGrid() {
     const el = document.createElement('div');
     el.className = 'vcard' + (v.id === selectedVoice.id ? ' selected' : '');
     el.innerHTML = `<div class="text-lg leading-none">${v.emoji}</div><div class="text-[0.65rem] font-bold text-slate-800 truncate">${v.name}</div><div class="text-[0.55rem] text-slate-400 truncate">${v.lang}</div>`;
-    el.onclick = () => { selectedVoice = v; buildVoiceGrid(); };
+    el.onclick = () => {
+      selectedVoice = v;
+      buildVoiceGrid();
+      document.getElementById('voice-config-sel').textContent = `${v.name} selectat${v.name.endsWith('a') || v.name.endsWith('e') ? 'ă' : ''} · click pentru configurare`;
+    };
     grid.appendChild(el);
   });
 }
 
-// ── FIX #2: TRANSCRIPT HELPERS ────────────────────────────────
-// Fixed toggleTranscript: no more double-toggle bug
+// ── TRANSCRIPT HELPERS ────────────────────────────────────────
 function toggleTranscript(type, idx) {
   const orig  = document.getElementById(`transcript-orig-${idx}`);
   const trans = document.getElementById(`transcript-trans-${idx}`);
@@ -538,8 +497,6 @@ function toggleTranscript(type, idx) {
   }
 }
 
-// Build transcript HTML for a given URL index
-// FIX #2: shows originalText always (not only when translatedText exists)
 function buildTranscriptHtml(data, limba, idx) {
   if (!data.originalText && !data.translatedText) return '';
   return `
@@ -564,262 +521,431 @@ function buildTranscriptHtml(data, limba, idx) {
 }
 
 // ══════════════════════════════════════════════════════════════
-// FIX #1: PIPELINE — BATCH (procesare pentru fiecare URL)
+// VIDEO CARD — creat dinamic pentru fiecare URL
+// ══════════════════════════════════════════════════════════════
+
+function createVideoCard(idx, url) {
+  const card = document.createElement('div');
+  card.id = `vc-${idx}`;
+  card.className = 'video-card bg-white border border-slate-200 rounded-[1.25rem] shadow-sm overflow-hidden';
+
+  // Thumbnail din YouTube
+  const videoId = url.match(/(?:v=|youtu\.be\/)([^?&\s]+)/)?.[1] || '';
+  const thumbHtml = videoId
+    ? `<img src="https://img.youtube.com/vi/${videoId}/mqdefault.jpg" class="w-14 h-10 object-cover rounded-lg shrink-0 border border-slate-100" onerror="this.style.display='none'">`
+    : `<div class="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-500 font-black text-sm shrink-0">${idx+1}</div>`;
+
+  const shortUrl = url.replace(/https?:\/\/(www\.)?/, '').substring(0, 50);
+
+  card.innerHTML = `
+    <!-- Header clickabil -->
+    <div class="flex items-center gap-3 px-5 py-3.5 cursor-pointer select-none" onclick="toggleCard(${idx})">
+      ${thumbHtml}
+      <div class="flex-1 min-w-0">
+        <div class="font-bold text-slate-800 text-sm">Video ${idx + 1}</div>
+        <div class="text-[0.6rem] text-slate-400 font-medium truncate">${escHtml(shortUrl)}</div>
+      </div>
+      <span id="vc-${idx}-badge" class="text-[0.6rem] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md bg-amber-100 text-amber-600 shrink-0 mr-1">running</span>
+      <i id="vc-${idx}-chevron" class="fas fa-chevron-down text-slate-400 text-xs chevron-anim"></i>
+    </div>
+
+    <!-- Mini step indicators -->
+    <div class="flex items-center gap-2 px-5 py-2.5 bg-slate-50/80 border-t border-b border-slate-100 flex-wrap">
+      <div class="flex items-center gap-1.5">
+        <div id="vc-${idx}-ms1" class="w-4 h-4 rounded-full bg-slate-200 flex items-center justify-center text-[0.5rem] font-black text-slate-400">1</div>
+        <span class="text-[0.6rem] font-semibold text-slate-400">Download</span>
+      </div>
+      <i class="fas fa-angle-right text-slate-200 text-[0.55rem]"></i>
+      <div class="flex items-center gap-1.5">
+        <div id="vc-${idx}-ms2" class="w-4 h-4 rounded-full bg-slate-200 flex items-center justify-center text-[0.5rem] font-black text-slate-400">2</div>
+        <span class="text-[0.6rem] font-semibold text-slate-400">Voice</span>
+      </div>
+      <i class="fas fa-angle-right text-slate-200 text-[0.55rem]"></i>
+      <div class="flex items-center gap-1.5">
+        <div id="vc-${idx}-ms3" class="w-4 h-4 rounded-full bg-slate-200 flex items-center justify-center text-[0.5rem] font-black text-slate-400">3</div>
+        <span class="text-[0.6rem] font-semibold text-slate-400">Smart Cut</span>
+      </div>
+      <div id="vc-${idx}-statustext" class="ml-auto text-[0.6rem] font-medium text-amber-600 italic truncate max-w-[45%]">Inițializare...</div>
+    </div>
+
+    <!-- Body expandabil -->
+    <div id="vc-${idx}-body" class="p-5 space-y-3">
+      <div id="vc-${idx}-loading" class="status-info flex items-center gap-2 text-sm pulse">
+        <i class="fas fa-circle-notch spin"></i> <span id="vc-${idx}-loading-msg">Se inițializează procesarea...</span>
+      </div>
+    </div>
+  `;
+  return card;
+}
+
+function toggleCard(idx) {
+  const body = document.getElementById(`vc-${idx}-body`);
+  const chevron = document.getElementById(`vc-${idx}-chevron`);
+  if (!body) return;
+  const isHidden = body.classList.contains('hidden');
+  body.classList.toggle('hidden');
+  chevron.style.transform = isHidden ? '' : 'rotate(-90deg)';
+}
+
+// Actualizare mini-indicator pas
+function setMiniStep(idx, step, state) {
+  const dot = document.getElementById(`vc-${idx}-ms${step}`);
+  if (!dot) return;
+  const cfgs = {
+    wait:   ['bg-slate-200','text-slate-400', step.toString()],
+    active: ['bg-amber-100','text-amber-600', '<i class="fas fa-circle-notch spin" style="font-size:0.42rem"></i>'],
+    done:   ['bg-green-100','text-green-600', '<i class="fas fa-check" style="font-size:0.42rem"></i>'],
+    error:  ['bg-red-100',  'text-red-500',   '<i class="fas fa-xmark" style="font-size:0.42rem"></i>'],
+    skip:   ['bg-slate-100','text-slate-400', '<i class="fas fa-forward" style="font-size:0.42rem"></i>'],
+  };
+  const [bg, col, html] = cfgs[state] || cfgs.wait;
+  dot.className = `w-4 h-4 rounded-full ${bg} ${col} flex items-center justify-center`;
+  dot.innerHTML = html;
+}
+
+// Actualizare badge card
+function setCardBadge(idx, state) {
+  const badge = document.getElementById(`vc-${idx}-badge`);
+  if (!badge) return;
+  const cfgs = {
+    running: ['bg-amber-100','text-amber-600', 'running'],
+    done:    ['bg-green-100','text-green-700', 'gata ✓'],
+    error:   ['bg-red-100',  'text-red-500',   'eroare'],
+    partial: ['bg-orange-100','text-orange-600','parțial'],
+  };
+  const [bg, col, label] = cfgs[state] || cfgs.running;
+  badge.className = `text-[0.6rem] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md ${bg} ${col} shrink-0 mr-1`;
+  badge.textContent = label;
+}
+
+// Text status mic
+function setCardStatus(idx, text) {
+  const el = document.getElementById(`vc-${idx}-statustext`);
+  if (el) el.textContent = text;
+}
+
+// Setare mesaj loading în body
+function setCardLoading(idx, msg) {
+  const el = document.getElementById(`vc-${idx}-loading-msg`);
+  if (el) el.textContent = msg;
+  const wrap = document.getElementById(`vc-${idx}-loading`);
+  if (wrap) wrap.style.display = '';
+}
+
+// Ascunde loading
+function clearCardLoading(idx) {
+  const el = document.getElementById(`vc-${idx}-loading`);
+  if (el) el.style.display = 'none';
+}
+
+// Adaugă/actualizează o secțiune în body-ul cardului
+function setCardSection(idx, sectionId, html) {
+  const body = document.getElementById(`vc-${idx}-body`);
+  if (!body) return;
+  let section = document.getElementById(sectionId);
+  if (!section) {
+    section = document.createElement('div');
+    section.id = sectionId;
+    section.className = 'fade-in';
+    body.appendChild(section);
+  }
+  section.innerHTML = html;
+}
+
+// ══════════════════════════════════════════════════════════════
+// PROCESS URL — rulat în paralel pentru fiecare URL
+// ══════════════════════════════════════════════════════════════
+async function processUrl(url, idx, quality, limba, skipVoice, skipCut, manualText, progressRef) {
+  const result = { url, videoUrl: null, voiceUrl: null, cutUrl: null, error: null };
+
+  // ── STEP 1: DOWNLOAD + TRANSCRIERE ─────────────────────────
+  setMiniStep(idx, 1, 'active');
+  setCardStatus(idx, 'Se descarcă...');
+  setCardLoading(idx, `Se descarcă video ${quality}p și se extrage transcrierea...`);
+
+  let data;
+  try {
+    const startRes = await fetch(`${API_BASE}/api/process-yt`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+      body: JSON.stringify({ url, quality, limba })
+    });
+    const startData = await startRes.json();
+    if (!startRes.ok) throw new Error(startData.error || 'Eroare server');
+
+    if (startData.status === 'done' && startData.cached) {
+      data = startData.data;
+    } else {
+      const jobId = startData.jobId;
+      const deadline = Date.now() + 5 * 60 * 1000;
+      while (Date.now() < deadline) {
+        await new Promise(r => setTimeout(r, 3000));
+        const pollRes = await fetch(`${API_BASE}/api/job/${jobId}`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const poll = await pollRes.json();
+        if (!pollRes.ok) throw new Error(poll.error || 'Eroare polling');
+        const progress = poll.progress || 'Se procesează...';
+        setCardStatus(idx, progress);
+        setCardLoading(idx, progress);
+        if (poll.status === 'done') { data = poll.data; break; }
+        if (poll.status === 'error') throw new Error(poll.error || 'Eroare procesare');
+      }
+      if (!data) throw new Error('Timeout: procesarea a durat prea mult (5 min).');
+    }
+
+    result.videoUrl = data.downloadUrl;
+    result.originalText = data.originalText;
+    result.transcript = data.translatedText || data.originalText || null;
+
+    if (data.creditsLeft !== undefined) document.getElementById('nav-credits').textContent = Math.floor(data.creditsLeft);
+    if (data.voice_characters !== undefined) document.getElementById('nav-chars').textContent = (data.voice_characters || 0).toLocaleString();
+
+    setMiniStep(idx, 1, 'done');
+    setCardStatus(idx, 'Download ✓');
+    clearCardLoading(idx);
+
+    const transcriptHtml = buildTranscriptHtml(data, limba, idx);
+    setCardSection(idx, `vc-${idx}-dl`, `
+      <div class="space-y-2">
+        <div class="flex items-center gap-1.5 text-[0.6rem] font-bold text-slate-400 uppercase tracking-wide">
+          <i class="fas fa-check-circle text-green-500"></i> Download complet
+        </div>
+        <a href="${data.downloadUrl}" class="flex items-center gap-2 bg-slate-900 hover:bg-viralio-600 text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow transition-all" download>
+          <i class="fas fa-film text-indigo-300"></i> Descarcă Video MP4 ${quality}p
+        </a>
+        ${transcriptHtml}
+      </div>
+    `);
+
+  } catch(e) {
+    result.error = e.message;
+    setMiniStep(idx, 1, 'error');
+    setMiniStep(idx, 2, 'skip');
+    setMiniStep(idx, 3, 'skip');
+    setCardBadge(idx, 'error');
+    setCardStatus(idx, 'Eroare');
+    clearCardLoading(idx);
+    setCardSection(idx, `vc-${idx}-dl`, `
+      <div class="status-error flex items-start gap-2 text-sm">
+        <i class="fas fa-circle-xmark mt-0.5 shrink-0"></i>
+        <div>${escHtml(e.message)}</div>
+      </div>
+    `);
+    progressRef.done++;
+    setRibbon('Batch activ', `${progressRef.done}/${progressRef.total} finalizate`, progressRef.done, progressRef.total);
+    return result;
+  }
+
+  // ── STEP 2: VOICE ───────────────────────────────────────────
+  if (!skipVoice) {
+    let textToSpeak = manualText || result.transcript;
+
+    if (!textToSpeak) {
+      setMiniStep(idx, 2, 'skip');
+      setCardSection(idx, `vc-${idx}-voice`, `
+        <div class="status-error text-sm">Nicio sursă de text pentru voice-over. Activează "Text manual".</div>
+      `);
+    } else {
+      setMiniStep(idx, 2, 'active');
+      setCardStatus(idx, 'Voice-over...');
+      setCardLoading(idx, `Se generează voice-over cu ${selectedVoice.name} (${textToSpeak.length} chars)...`);
+
+      // Traducere suplimentară dacă e nevoie
+      if (!manualText && result.transcript) {
+        try {
+          const tRes = await fetch(`${API_BASE}/api/translate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+            body: JSON.stringify({ text: textToSpeak, limba })
+          });
+          const tData = await tRes.json();
+          if (tRes.ok && tData.translated) textToSpeak = tData.translated;
+        } catch(e) {}
+      }
+
+      try {
+        const vRes = await fetch(`${API_BASE}/api/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+          body: JSON.stringify({
+            text: textToSpeak,
+            voiceId: selectedVoice.id,
+            voice: selectedVoice.name,
+            stability: parseFloat(document.getElementById('sl-stability').value),
+            similarity_boost: parseFloat(document.getElementById('sl-similarity').value),
+            speed: parseFloat(document.getElementById('sl-speed').value)
+          })
+        });
+        const vData = await vRes.json();
+        if (!vRes.ok) throw new Error(vData.error || 'Eroare voice');
+
+        result.voiceUrl = vData.audioUrl;
+        if (vData.remaining_chars !== undefined) document.getElementById('nav-chars').textContent = (vData.remaining_chars || 0).toLocaleString();
+
+        setMiniStep(idx, 2, 'done');
+        setCardStatus(idx, 'Voice ✓');
+        clearCardLoading(idx);
+        setCardSection(idx, `vc-${idx}-voice`, `
+          <div class="space-y-2">
+            <div class="flex items-center gap-1.5 text-[0.6rem] font-bold text-slate-400 uppercase tracking-wide">
+              <i class="fas fa-check-circle text-green-500"></i> Voice generat cu ${escHtml(selectedVoice.name)}
+            </div>
+            <audio controls src="${vData.audioUrl}" class="w-full rounded-xl" style="height:40px"></audio>
+            <a href="${vData.audioUrl}" class="flex items-center gap-2 bg-indigo-50 border border-indigo-200 hover:border-indigo-400 text-indigo-800 px-4 py-2 rounded-xl font-bold text-sm transition-all" download>
+              <i class="fas fa-microphone-lines text-indigo-500"></i> Descarcă Voice-over MP3
+            </a>
+          </div>
+        `);
+
+      } catch(e) {
+        setMiniStep(idx, 2, 'error');
+        clearCardLoading(idx);
+        setCardSection(idx, `vc-${idx}-voice`, `<div class="status-error text-sm">${escHtml(e.message)}</div>`);
+      }
+    }
+  } else {
+    setMiniStep(idx, 2, 'skip');
+  }
+
+  // ── STEP 3: SMART CUT ───────────────────────────────────────
+  if (!skipCut && result.voiceUrl) {
+    setMiniStep(idx, 3, 'active');
+    setCardStatus(idx, 'Smart Cut...');
+    setCardLoading(idx, 'Smart Cut procesează audio-ul — elimină pauzele...');
+
+    try {
+      const audioBlob = await fetch(result.voiceUrl).then(r => r.blob());
+      const audioFile = new File([audioBlob], 'audio.mp3', { type: 'audio/mpeg' });
+      const formData = new FormData();
+      formData.append('file', audioFile);
+      formData.append('minSilence', document.getElementById('sl-silence').value);
+      formData.append('threshold', document.getElementById('sl-thresh').value + 'dB');
+
+      const scRes = await fetch(`${API_BASE}/api/smart-cut`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${authToken}` },
+        body: formData
+      });
+      const scData = await scRes.json();
+      if (!scRes.ok) throw new Error(scData.error || 'Eroare smart cut');
+
+      result.cutUrl = scData.downloadUrl;
+      if (scData.creditsLeft !== undefined) document.getElementById('nav-credits').textContent = Math.floor(scData.creditsLeft);
+
+      setMiniStep(idx, 3, 'done');
+      setCardStatus(idx, 'Smart Cut ✓');
+      clearCardLoading(idx);
+      setCardSection(idx, `vc-${idx}-cut`, `
+        <div class="space-y-2">
+          <div class="flex items-center gap-1.5 text-[0.6rem] font-bold text-slate-400 uppercase tracking-wide">
+            <i class="fas fa-check-circle text-green-500"></i> Smart Cut finalizat
+          </div>
+          <audio controls src="${scData.downloadUrl}" class="w-full rounded-xl" style="height:40px"></audio>
+          <a href="${scData.downloadUrl}" class="flex items-center gap-2 bg-green-50 border border-green-200 hover:border-green-400 text-green-800 px-4 py-2 rounded-xl font-bold text-sm transition-all" download>
+            <i class="fas fa-scissors text-green-500"></i> Descarcă Smart Cut MP3
+          </a>
+        </div>
+      `);
+
+    } catch(e) {
+      setMiniStep(idx, 3, 'error');
+      clearCardLoading(idx);
+      setCardSection(idx, `vc-${idx}-cut`, `<div class="status-error text-sm">${escHtml(e.message)}</div>`);
+    }
+
+  } else if (!skipCut && !result.voiceUrl) {
+    setMiniStep(idx, 3, 'skip');
+  } else {
+    setMiniStep(idx, 3, 'skip');
+  }
+
+  // ── DONE ───────────────────────────────────────────────────
+  const hasVideo = !!result.videoUrl;
+  setCardBadge(idx, hasVideo ? 'done' : 'error');
+  if (hasVideo) {
+    setCardStatus(idx, 'Gata! ✓');
+    // Adaugă Caption Remover link la final
+    setCardSection(idx, `vc-${idx}-caption`, `
+      <a href="https://captions.viralio.ro/" target="_blank"
+         class="w-full flex items-center justify-center gap-2 bg-gradient-viralio hover:opacity-90 text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow-md transition-all">
+        <i class="fas fa-closed-captioning"></i> Caption Remover
+        <i class="fas fa-arrow-right text-xs opacity-70"></i>
+      </a>
+    `);
+  }
+
+  clearCardLoading(idx);
+
+  progressRef.done++;
+  setRibbon('Batch activ', `${progressRef.done}/${progressRef.total} finalizate`, progressRef.done, progressRef.total);
+
+  return result;
+}
+
+// ══════════════════════════════════════════════════════════════
+// RUN PIPELINE — lansează toate URL-urile în PARALEL
 // ══════════════════════════════════════════════════════════════
 async function runPipeline() {
   if (!requireAuth()) return;
 
-  // Collect all URLs
   const urlInputs = [...document.querySelectorAll('.url-input')]
     .map(i => i.value.trim()).filter(Boolean);
 
   if (urlInputs.length === 0) { alert('Lipește cel puțin un link YouTube!'); return; }
-  const invalidUrls = urlInputs.filter(u => !/youtu/.test(u));
-  if (invalidUrls.length > 0) { alert('Link YouTube invalid:\n' + invalidUrls.join('\n')); return; }
+  const invalid = urlInputs.filter(u => !/youtu/.test(u));
+  if (invalid.length > 0) { alert('Link YouTube invalid:\n' + invalid.join('\n')); return; }
 
-  const quality   = document.getElementById('dl-quality').value;
-  const limba     = document.getElementById('dl-limba').value;
-  const skipVoice = document.getElementById('skip-voice').checked;
-  const skipCut   = document.getElementById('skip-cut').checked;
-  const manualText= document.getElementById('manual-text-toggle').checked
+  const quality    = document.getElementById('dl-quality').value;
+  const limba      = document.getElementById('dl-limba').value;
+  const skipVoice  = document.getElementById('skip-voice').checked;
+  const skipCut    = document.getElementById('skip-cut').checked;
+  const manualText = document.getElementById('manual-text-toggle').checked
     ? document.getElementById('manual-text').value.trim() : null;
 
   const btn = document.getElementById('run-btn');
   btn.disabled = true;
-  btn.innerHTML = '<i class="fas fa-circle-notch spin"></i> Se procesează...';
+  btn.innerHTML = `<i class="fas fa-circle-notch spin"></i> Se procesează ${urlInputs.length} video${urlInputs.length > 1 ? 'uri' : ''}...`;
 
-  // Reset UI
-  resetSteps();
-  document.getElementById('final-result').classList.add('hidden');
-  document.getElementById('final-body').innerHTML = '';
+  // Pregătire container batch
+  const batchContainer = document.getElementById('batch-container');
+  batchContainer.innerHTML = '';
+  batchContainer.classList.remove('hidden');
 
-  const totalSteps = (skipVoice ? 0 : 1) + (skipCut ? 0 : 1) + 1;
-  const allResults = [];
-
-  // ── Loop fiecare URL ───────────────────────────────────────
-  for (let urlIdx = 0; urlIdx < urlInputs.length; urlIdx++) {
-    const url = urlInputs[urlIdx];
-    const batchLabel = urlInputs.length > 1 ? ` (${urlIdx + 1}/${urlInputs.length})` : '';
-    const urlRes = {};
-
-    resetSteps();
-
-    // ── STEP 1: DOWNLOAD + TRANSCRIERE ──────────────────────
-    setStep(1, 'active', `Se descarcă și transcrie videoclipul${batchLabel}...`);
-    setRibbon(`Download + Transcriere${batchLabel}`, `Step 1 · ${quality}p · nu închide pagina`, 0, totalSteps);
-    setStepBody(1, `<div class="status-info flex items-center gap-2 pulse text-sm"><i class="fas fa-circle-notch spin"></i> Se descarcă video ${quality}p și se extrage transcrierea în paralel...</div>`);
-
-    try {
-      // Start job async — răspunde instant cu jobId
-      const startRes = await fetch(`${API_BASE}/api/process-yt`, {
-        method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':`Bearer ${authToken}`},
-        body: JSON.stringify({ url, quality, limba })
-      });
-      const startData = await startRes.json();
-      if (!startRes.ok) throw new Error(startData.error || 'Eroare server');
-
-      let data;
-      // Cache hit — răspuns instant
-      if (startData.status === 'done' && startData.cached) {
-        data = startData.data;
-      } else {
-        // Polling până se termină
-        const jobId = startData.jobId;
-        const maxWait = 5 * 60 * 1000; // 5 minute max
-        const pollInterval = 3000;
-        const deadline = Date.now() + maxWait;
-        while (Date.now() < deadline) {
-          await new Promise(r => setTimeout(r, pollInterval));
-          const pollRes = await fetch(`${API_BASE}/api/job/${jobId}`, {
-            headers:{'Authorization':`Bearer ${authToken}`}
-          });
-          const poll = await pollRes.json();
-          if (!pollRes.ok) throw new Error(poll.error || 'Eroare polling');
-          // Update status text cu progresul live
-          setStep(1, 'active', poll.progress || 'Se procesează...');
-          if (poll.status === 'done') { data = poll.data; break; }
-          if (poll.status === 'error') throw new Error(poll.error || 'Eroare procesare');
-        }
-        if (!data) throw new Error('Timeout: procesarea a durat prea mult (5 min).');
-      }
-
-      urlRes.videoUrl     = data.downloadUrl;
-      urlRes.originalText = data.originalText;
-      urlRes.translatedText = data.translatedText;
-      urlRes.transcript   = data.translatedText || data.originalText || null;
-
-      if (data.creditsLeft !== undefined) document.getElementById('nav-credits').textContent = Math.floor(data.creditsLeft);
-      if (data.voice_characters !== undefined) document.getElementById('nav-chars').textContent = (data.voice_characters||0).toLocaleString();
-
-      const transcriptHtml = buildTranscriptHtml(data, limba, urlIdx);
-      const dlHtml = `
-        <div class="flex flex-col gap-3">
-          <a href="${data.downloadUrl}" class="w-full flex items-center justify-center gap-2 bg-slate-900 hover:bg-viralio-600 text-white px-5 py-2.5 rounded-xl font-bold shadow-md transition-all text-sm" download>
-            <i class="fas fa-download text-indigo-400"></i> Descarcă Video MP4 ${quality}p
-          </a>
-          ${transcriptHtml}
-        </div>`;
-      setStepBody(1, dlHtml);
-      setStep(1, 'done', `Video ${quality}p descărcat ✓`);
-      setRibbon('Download complet!', 'Continuăm cu voice-over...', 1, totalSteps);
-
-    } catch(e) {
-      setStep(1, 'error', e.message);
-      setStepBody(1, `<div class="status-error text-sm flex items-start gap-2"><i class="fas fa-circle-xmark mt-0.5 shrink-0"></i><div>${e.message}</div></div>`);
-      allResults.push({ error: e.message, url });
-      continue; // trece la URL-ul următor
-    }
-
-    // ── STEP 2: VOICE ────────────────────────────────────────
-    if (!skipVoice) {
-      let textToSpeak = manualText || urlRes.transcript;
-
-      if (!textToSpeak) {
-        setStep(2, 'error', 'Nicio sursă de text');
-        setStepBody(2, `<div class="status-error text-sm">Nu există transcript pentru voice-over. Activează "Text manual" și scrie textul.</div>`);
-      } else {
-        setStep(2, 'active', `Generare cu ${selectedVoice.name}${batchLabel}...`);
-        setRibbon(`Voice-over cu ${selectedVoice.name}${batchLabel}`, `Step 2 · ${textToSpeak.length} chars · poate dura 30-60s`, 1, totalSteps);
-        setStepBody(2, `<div class="status-info flex items-center gap-2 pulse text-sm"><i class="fas fa-circle-notch spin"></i> Se generează voice-over cu ${selectedVoice.name} (${textToSpeak.length} caractere)...</div>`);
-
-        // Traducere suplimentară dacă e nevoie
-        if (!manualText && urlRes.transcript) {
-          try {
-            const tRes = await fetch(`${API_BASE}/api/translate`, {
-              method:'POST',
-              headers:{'Content-Type':'application/json','Authorization':`Bearer ${authToken}`},
-              body: JSON.stringify({ text: textToSpeak, limba })
-            });
-            const tData = await tRes.json();
-            if (tRes.ok && tData.translated) textToSpeak = tData.translated;
-          } catch(e) {}
-        }
-
-        try {
-          const vRes = await fetch(`${API_BASE}/api/generate`, {
-            method:'POST',
-            headers:{'Content-Type':'application/json','Authorization':`Bearer ${authToken}`},
-            body: JSON.stringify({
-              text: textToSpeak,
-              voiceId: selectedVoice.id,
-              voice: selectedVoice.name,
-              stability: parseFloat(document.getElementById('sl-stability').value),
-              similarity_boost: parseFloat(document.getElementById('sl-similarity').value),
-              speed: parseFloat(document.getElementById('sl-speed').value)
-            })
-          });
-          const vData = await vRes.json();
-          if (!vRes.ok) throw new Error(vData.error || 'Eroare voice');
-
-          urlRes.voiceUrl = vData.audioUrl;
-          if (vData.remaining_chars !== undefined) document.getElementById('nav-chars').textContent = (vData.remaining_chars||0).toLocaleString();
-
-          setStepBody(2, `<div class="flex flex-col gap-3">
-            <audio controls src="${vData.audioUrl}" class="w-full rounded-xl" style="filter:none"></audio>
-            <a href="${vData.audioUrl}" class="flex items-center justify-center gap-2 bg-slate-50 border border-slate-200 hover:border-indigo-300 text-slate-700 font-bold py-2 rounded-xl text-sm transition-colors" download><i class="fas fa-download text-indigo-400"></i> Descarcă MP3</a>
-          </div>`);
-          setStep(2, 'done', `Voice generat cu ${selectedVoice.name} ✓`);
-          setRibbon('Voice gata!', 'Rulăm Smart Cut...', 2, totalSteps);
-
-        } catch(e) {
-          setStep(2, 'error', e.message);
-          setStepBody(2, `<div class="status-error text-sm">${e.message}</div>`);
-        }
-      }
-    } else {
-      setStep(2, 'skip', 'Sărit la cerere');
-    }
-
-    // ── STEP 3: SMART CUT ────────────────────────────────────
-    const audioForCut = urlRes.voiceUrl;
-    if (!skipCut && audioForCut) {
-      setStep(3, 'active', 'Se elimină pauzele...');
-      setRibbon('Smart Cut...', 'Step final · elimină pauzele din audio', 2, totalSteps);
-      setStepBody(3, `<div class="status-info flex items-center gap-2 pulse text-sm"><i class="fas fa-circle-notch spin"></i> Smart Cut procesează audio-ul...</div>`);
-
-      try {
-        const audioBlob = await fetch(audioForCut).then(r => r.blob());
-        const audioFile = new File([audioBlob], 'audio.mp3', { type:'audio/mpeg' });
-        const formData = new FormData();
-        formData.append('file', audioFile);
-        formData.append('minSilence', document.getElementById('sl-silence').value);
-        formData.append('threshold', document.getElementById('sl-thresh').value + 'dB');
-
-        const scRes = await fetch(`${API_BASE}/api/smart-cut`, {
-          method:'POST',
-          headers:{'Authorization':`Bearer ${authToken}`},
-          body: formData
-        });
-        const scData = await scRes.json();
-        if (!scRes.ok) throw new Error(scData.error || 'Eroare smart cut');
-
-        urlRes.cutUrl = scData.downloadUrl;
-        if (scData.creditsLeft !== undefined) document.getElementById('nav-credits').textContent = Math.floor(scData.creditsLeft);
-
-        setStepBody(3, `<div class="flex flex-col gap-3">
-          <audio controls src="${scData.downloadUrl}" class="w-full rounded-xl"></audio>
-          <a href="${scData.downloadUrl}" class="flex items-center justify-center gap-2 bg-slate-50 border border-slate-200 hover:border-green-300 text-slate-700 font-bold py-2 rounded-xl text-sm transition-colors" download><i class="fas fa-download text-green-500"></i> Descarcă Audio Final</a>
-        </div>`);
-        setStep(3, 'done', 'Smart Cut finalizat ✓');
-
-      } catch(e) {
-        setStep(3, 'error', e.message);
-        setStepBody(3, `<div class="status-error text-sm">${e.message}</div>`);
-      }
-    } else if (skipCut) {
-      setStep(3, 'skip', 'Sărit la cerere');
-    } else {
-      setStep(3, 'skip', 'Fără audio generat');
-    }
-
-    allResults.push(urlRes);
-  } // ── end URL loop ──
-
-  // ── FINAL RESULTS ─────────────────────────────────────────
-  const finalBody = document.getElementById('final-body');
-  finalBody.innerHTML = '';
-  let hasAny = false;
-
-  allResults.forEach((res, i) => {
-    if (res.error) return;
-    const items = [];
-    if (res.videoUrl) items.push(`<a href="${res.videoUrl}" class="flex items-center gap-3 bg-slate-900 hover:bg-viralio-600 text-white px-5 py-3 rounded-xl font-bold transition-all text-sm shadow-md" download><i class="fas fa-film text-indigo-300"></i> Video MP4 ${quality}p</a>`);
-    if (res.voiceUrl) items.push(`<a href="${res.voiceUrl}" class="flex items-center gap-3 bg-indigo-50 border border-indigo-200 hover:border-indigo-400 text-indigo-800 px-5 py-3 rounded-xl font-bold transition-all text-sm" download><i class="fas fa-microphone-lines text-indigo-500"></i> Voice-over MP3</a>`);
-    if (res.cutUrl)   items.push(`<a href="${res.cutUrl}" class="flex items-center gap-3 bg-green-50 border border-green-200 hover:border-green-400 text-green-800 px-5 py-3 rounded-xl font-bold transition-all text-sm" download><i class="fas fa-scissors text-green-500"></i> Smart Cut MP3</a>`);
-    if (items.length === 0) return;
-    hasAny = true;
-
-    // Label pentru batch
-    const label = urlInputs.length > 1
-      ? `<div class="text-[0.6rem] font-bold text-slate-400 uppercase tracking-wide pb-1.5 border-b border-slate-100 mb-1">Video ${i + 1}</div>`
-      : '';
-
-    const block = document.createElement('div');
-    block.className = 'grid grid-cols-1 sm:grid-cols-2 gap-2';
-    block.innerHTML = label + items.join('');
-    finalBody.appendChild(block);
+  // Creează câte un card pentru fiecare URL
+  urlInputs.forEach((url, idx) => {
+    batchContainer.appendChild(createVideoCard(idx, url));
   });
 
-  // FIX #3: buton Caption Remover după ce se termină tot
-  if (hasAny) {
-    const capBtn = document.createElement('div');
-    capBtn.className = 'pt-1';
-    capBtn.innerHTML = `
-      <a href="https://captions.viralio.ro/" target="_blank"
-         class="w-full flex items-center justify-center gap-2 bg-gradient-viralio hover:opacity-90 text-white px-5 py-3 rounded-xl font-bold text-sm shadow-md transition-all">
-        <i class="fas fa-closed-captioning"></i> Caption Remover
-        <i class="fas fa-arrow-right text-xs opacity-70"></i>
-      </a>`;
-    finalBody.appendChild(capBtn);
+  // Scroll la primul card
+  setTimeout(() => batchContainer.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
 
-    document.getElementById('final-result').classList.remove('hidden');
-    document.getElementById('final-result').scrollIntoView({ behavior:'smooth', block:'nearest' });
-  }
+  // Progress tracker global
+  const progressRef = { done: 0, total: urlInputs.length };
+  setRibbon(
+    `Procesare ${urlInputs.length} video${urlInputs.length > 1 ? 'uri' : ''}`,
+    '0/' + urlInputs.length + ' finalizate · procesare paralelă · nu închide pagina',
+    0, urlInputs.length
+  );
 
-  hideRibbon();
+  // ★ PROCESARE PARALELĂ — toate URL-urile pornesc simultan ★
+  await Promise.allSettled(
+    urlInputs.map((url, idx) =>
+      processUrl(url, idx, quality, limba, skipVoice, skipCut, manualText, progressRef)
+    )
+  );
+
+  // Finalizat
+  const doneCount = progressRef.done;
+  setRibbon(
+    `Pipeline complet! 🎉`,
+    `${doneCount}/${urlInputs.length} video${urlInputs.length > 1 ? 'uri' : ''} procesate`,
+    doneCount, urlInputs.length
+  );
+  setTimeout(hideRibbon, 5000);
+
   btn.disabled = false;
-  btn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> PORNEȘTE DIN NOU · <span class="bg-white/20 rounded-md px-1.5 py-0.5 text-xs font-black">2 credite</span>';
+  btn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> PORNEȘTE DIN NOU · <span class="bg-white/20 rounded-md px-1.5 py-0.5 text-xs font-black">2 credite/video</span>';
 }
 
 // ── UTILS ─────────────────────────────────────────────────────
@@ -835,7 +961,7 @@ function copyText(id, btn) {
 
 function escHtml(s) { const d=document.createElement('div'); d.appendChild(document.createTextNode(s)); return d.innerHTML; }
 
-// Paste URL cu auto-detect — compatibil cu batch
+// Paste URL cu auto-detect
 document.getElementById('url-list').addEventListener('paste', (e) => {
   const input = e.target.closest('.url-input');
   if (!input) return;
