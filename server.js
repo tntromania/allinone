@@ -201,14 +201,18 @@ const getTranscriptAndTranslation = async (url, videoId, limba = 'română') => 
     let originalText = '';
     const audioPath = path.join(DOWNLOAD_DIR, `audio_${videoId}.mp3`);
     try {
-        // Subtitrări native
+        // Subtitrări native (YouTube, TikTok, Instagram, Facebook — orice platformă)
         try {
-            await runYtDlp([...baseArgs(), '--write-auto-subs', '--sub-langs', 'ro,en', '--sub-format', 'vtt', '--skip-download', '-o', path.join(DOWNLOAD_DIR, `sub_${videoId}.%(ext)s`), url], { timeout: 30000 });
-            const subFile = ['ro','en'].map(l => path.join(DOWNLOAD_DIR, `sub_${videoId}.${l}.vtt`)).find(f => fs.existsSync(f));
-            if (subFile) {
+            await runYtDlp([...baseArgs(), '--write-auto-subs', '--write-subs', '--sub-langs', 'all', '--sub-format', 'vtt', '--skip-download', '-o', path.join(DOWNLOAD_DIR, `sub_${videoId}.%(ext)s`), url], { timeout: 35000 });
+            // Caută primul fișier .vtt generat, preferând ro/en
+            const subDir = fs.readdirSync(DOWNLOAD_DIR).filter(f => f.startsWith(`sub_${videoId}`) && f.endsWith('.vtt'));
+            const preferred = subDir.find(f => /\.(ro|en)\.vtt$/.test(f)) || subDir[0];
+            if (preferred) {
+                const subFile = path.join(DOWNLOAD_DIR, preferred);
                 const raw = fs.readFileSync(subFile, 'utf8');
                 const clean = raw.replace(/WEBVTT[\s\S]*?\n\n/,'').replace(/\d{2}:\d{2}:\d{2}\.\d{3} --> [\s\S]*?\n/g,'').replace(/<[^>]+>/g,'').replace(/\n{2,}/g,' ').trim();
-                try { fs.unlinkSync(subFile); } catch(e) {}
+                // Curăță toate .vtt ale acestui video
+                subDir.forEach(f => { try { fs.unlinkSync(path.join(DOWNLOAD_DIR, f)); } catch(e) {} });
                 if (clean.length > 50) { originalText = clean; }
             }
         } catch(e) {}

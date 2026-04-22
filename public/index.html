@@ -508,11 +508,23 @@ function createVideoCard(idx, url) {
   card.id = `vc-${idx}`;
   card.className = 'video-card bg-white border border-slate-200 rounded-[1.25rem] shadow-sm overflow-hidden';
 
-  // Thumbnail din YouTube
-  const videoId = url.match(/(?:v=|youtu\.be\/)([^?&\s]+)/)?.[1] || '';
-  const thumbHtml = videoId
-    ? `<img src="https://img.youtube.com/vi/${videoId}/mqdefault.jpg" class="w-14 h-10 object-cover rounded-lg shrink-0 border border-slate-100" onerror="this.style.display='none'">`
-    : `<div class="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-500 font-black text-sm shrink-0">${idx+1}</div>`;
+  // Thumbnail & iconiță per platformă
+  const ytId = url.match(/(?:v=|youtu\.be\/|shorts\/)([\w-]{11})/)?.[1] || '';
+  const isTT = /tiktok\.com/.test(url);
+  const isIG = /instagram\.com/.test(url);
+  const isFB = /facebook\.com|fb\.watch/.test(url);
+  let thumbHtml;
+  if (ytId) {
+    thumbHtml = `<img src="https://img.youtube.com/vi/${ytId}/mqdefault.jpg" class="w-14 h-10 object-cover rounded-lg shrink-0 border border-slate-100" onerror="this.style.display='none'">`;
+  } else if (isTT) {
+    thumbHtml = `<div class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style="background:#010101"><i class="fab fa-tiktok text-white text-lg"></i></div>`;
+  } else if (isIG) {
+    thumbHtml = `<div class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style="background:linear-gradient(135deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)"><i class="fab fa-instagram text-white text-lg"></i></div>`;
+  } else if (isFB) {
+    thumbHtml = `<div class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style="background:#1877f2"><i class="fab fa-facebook-f text-white text-lg"></i></div>`;
+  } else {
+    thumbHtml = `<div class="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-500 font-black text-sm shrink-0">${idx+1}</div>`;
+  }
 
   const shortUrl = url.replace(/https?:\/\/(www\.)?/, '').substring(0, 50);
 
@@ -944,7 +956,7 @@ document.getElementById('url-list').addEventListener('paste', (e) => {
   const input = e.target.closest('.url-input');
   if (!input) return;
   setTimeout(() => {
-    if (/youtu/.test(input.value)) { input.style.borderColor='#a5b4fc'; input.style.background='#eef2ff'; }
+    if (/youtu|tiktok|instagram|facebook|fb\.watch/.test(input.value)) { input.style.borderColor='#a5b4fc'; input.style.background='#eef2ff'; }
     else { input.style.borderColor=''; input.style.background=''; }
   }, 50);
 });
