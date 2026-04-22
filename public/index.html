@@ -7,6 +7,9 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<!-- Voice data — trebuie să fie înainte de scriptul principal -->
+<script src="/voices.js"></script>
+<script src="/minimax-voices.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
@@ -414,11 +417,28 @@ function requireAuth() { if (!authToken) { openLoginModal(); return false; } ret
 
 async function handleCredentialResponse(response) {
   try {
-    const res = await fetch(`${API_BASE}/api/auth/google`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ credential: response.credential }) });
+    const res = await fetch(`${API_BASE}/api/auth/google`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ credential: response.credential })
+    });
     const data = await res.json();
-    if (data.token) { setToken(data.token); authToken = data.token; closeLoginModal(); updateUI(data.user); }
-    else if (data.error === 'BETA_FULL') alert(data.message);
-  } catch(e) { alert('Eroare conexiune login.'); }
+    if (data.token) {
+      setToken(data.token);
+      authToken = data.token;
+      closeLoginModal();
+      // HUB returnează user direct sau în data.user
+      updateUI(data.user || data);
+    } else if (data.error === 'BETA_FULL') {
+      alert(data.message || 'Beta plin momentan.');
+    } else {
+      console.error('Login error:', data);
+      alert(data.error || data.message || 'Eroare la autentificare.');
+    }
+  } catch(e) {
+    console.error('Login fetch error:', e);
+    alert('Eroare conexiune login. Verifică consola.');
+  }
 }
 
 function updateUI(user) {
@@ -427,9 +447,13 @@ function updateUI(user) {
   const up = document.getElementById('user-profile');
   up.classList.remove('hidden'); up.classList.add('flex');
   document.getElementById('nav-name').textContent = (user.name||'').split(' ')[0];
-  document.getElementById('nav-avatar').src = user.picture||'';
-  document.getElementById('nav-credits').textContent = Math.floor(user.credits||0);
-  document.getElementById('nav-chars').textContent = (user.voice_characters||0).toLocaleString();
+  document.getElementById('nav-avatar').src = user.picture||user.avatar||'';
+  // HUB poate returna credits sau creditsLeft
+  const cr = user.credits ?? user.creditsLeft ?? user.credit ?? 0;
+  document.getElementById('nav-credits').textContent = Math.floor(Number(cr)||0);
+  // HUB poate returna voice_characters sau voiceChars
+  const vc = user.voice_characters ?? user.voiceChars ?? user.voice_chars ?? 0;
+  document.getElementById('nav-chars').textContent = (Number(vc)||0).toLocaleString();
 }
 
 function logout() { removeToken(); authToken = null; location.reload(); }
@@ -439,9 +463,18 @@ window.addEventListener('load', async () => {
   if (token) {
     try {
       const res = await fetch(`${API_BASE}/api/auth/me`, { headers:{'Authorization':`Bearer ${token}`} });
-      if (res.ok) { const data = await res.json(); authToken = token; updateUI(data.user); }
-      else if (res.status === 401) removeToken();
-    } catch(e) {}
+      if (res.ok) {
+        const data = await res.json();
+        authToken = token;
+        updateUI(data.user || data);
+      } else if (res.status === 401) {
+        removeToken();
+      } else {
+        console.warn('Auth/me failed:', res.status);
+      }
+    } catch(e) {
+      console.warn('Auth/me error:', e.message);
+    }
   }
   buildVoiceGrid();
   initUrlRows();
@@ -562,13 +595,22 @@ function switchVoiceProvider(p) {
 
 // ── FILTER + BUILD GRID ───────────────────────────────────────
 function filterVoiceGrid() {
-  const q = document.getElementById('voice-search').value.toLowerCase();
-  const gf = document.getElementById('voice-filter-gender').value;
+  const q = (document.getElementById('voice-search')?.value || '').toLowerCase();
+  const gf = document.getElementById('voice-filter-gender')?.value || 'all';
 
-  // Sursa de date — vine din voices.js / minimax-voices.js incluse în public/
-  const sourceList = voiceProvider === 'el'
-    ? (typeof ALL_VOICES !== 'undefined' ? ALL_VOICES : [])
-    : (typeof ALL_MINIMAX_VOICES !== 'undefined' ? ALL_MINIMAX_VOICES : []);
+  const elVoices  = typeof ALL_VOICES !== 'undefined' ? ALL_VOICES : null;
+  const mmVoices  = typeof ALL_MINIMAX_VOICES !== 'undefined' ? ALL_MINIMAX_VOICES : null;
+
+  const sourceList = voiceProvider === 'el' ? elVoices : mmVoices;
+
+  const grid = document.getElementById('voice-grid');
+
+  if (!sourceList) {
+    grid.innerHTML = `<div class="col-span-5 text-center text-red-400 text-xs py-4 font-bold">
+      ⚠️ ${voiceProvider === 'el' ? 'voices.js' : 'minimax-voices.js'} nu este încărcat în /public/
+    </div>`;
+    return;
+  }
 
   let list = sourceList.filter(v => {
     const matchQ = !q || v.name.toLowerCase().includes(q) || (v.style||'').toLowerCase().includes(q) || (v.accent||'').toLowerCase().includes(q);
@@ -576,10 +618,8 @@ function filterVoiceGrid() {
     return matchQ && matchG;
   });
 
-  // Sortare A→Z
   list.sort((a, b) => a.name.localeCompare(b.name));
 
-  const grid = document.getElementById('voice-grid');
   grid.innerHTML = '';
 
   if (!list.length) {
@@ -1125,8 +1165,6 @@ document.getElementById('url-list').addEventListener('paste', (e) => {
     else { input.style.borderColor=''; input.style.background=''; }
   }, 50);
 });
-<!-- Voice data — trebuie să existe în public/ -->
-<script src="/voices.js"></script>
-<script src="/minimax-voices.js"></script>
+</script>
 </body>
 </html>
