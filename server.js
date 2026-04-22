@@ -235,7 +235,7 @@ const downloadVideo = async (url, outputPath, quality = '720') => {
 };
 
 // ── TRANSCRIERE + TRADUCERE ───────────────────────────────────
-const getTranscriptAndTranslation = async (url, videoId, limba = 'română') => {
+const getTranscriptAndTranslation = async (url, videoId, limba = 'română', existingVideoPath = null) => {
     const t0 = Date.now();
     let originalText = '';
     const isNonYT = NON_YT_PLATFORMS.test(url);
@@ -251,6 +251,15 @@ const getTranscriptAndTranslation = async (url, videoId, limba = 'română') => 
             '--no-playlist',
             '-o', audioPath, url
         ], { timeout: 300000 });
+    }
+
+    // Funcție internă: extrage audio din videoul deja descărcat (ffmpeg, fără yt-dlp)
+    async function extractAudioFromVideo(videoPath) {
+        if (fs.existsSync(audioPath)) try { fs.unlinkSync(audioPath); } catch(e) {}
+        console.log(`${ts()} 🎬 Extrag audio din video existent (${(fs.statSync(videoPath).size/1024/1024).toFixed(2)}MB)...`);
+        await new Promise((res, rej) => execFile('ffmpeg', [
+            '-i', videoPath, '-vn', '-acodec', 'libmp3lame', '-q:a', '0', '-y', audioPath
+        ], { timeout: 120000 }, err => err ? rej(new Error('ffmpeg extract: ' + err.message.slice(0, 100))) : res()));
     }
 
     try {
@@ -273,8 +282,13 @@ const getTranscriptAndTranslation = async (url, videoId, limba = 'română') => 
             console.log(`${ts()} 🎙 Whisper fallback | non-yt=${isNonYT}`);
             try {
                 if (isNonYT) {
-                    // Non-YouTube: yt-dlp direct (TikTok/IG/FB CDN refuză curl)
-                    await downloadAudioDirect();
+                    // Non-YouTube: folosește videoul deja descărcat dacă există (evită al doilea yt-dlp)
+                    // Altfel descarcă audio separat cu yt-dlp
+                    if (existingVideoPath && fs.existsSync(existingVideoPath) && fs.statSync(existingVideoPath).size > 50*1024) {
+                        await extractAudioFromVideo(existingVideoPath);
+                    } else {
+                        await downloadAudioDirect();
+                    }
                 } else {
                     // YouTube: încearcă CDN URL mai întâi (mai rapid)
                     try {
@@ -293,7 +307,19 @@ const getTranscriptAndTranslation = async (url, videoId, limba = 'română') => 
 
                 if (fs.existsSync(audioPath) && fs.statSync(audioPath).size > 1000) {
                     console.log(`${ts()} 🎙 Whisper pe ${(fs.statSync(audioPath).size/1024).toFixed(0)}KB audio...`);
-                    const tr = await openai.audio.transcriptions.create({ file: fs.createReadStream(audioPath), model: 'whisper-1' });
+                    // Retry Whisper de 3 ori în caz de Connection error
+                    let tr, whisperAttempt = 0;
+                    while (whisperAttempt < 3) {
+                        try {
+                            tr = await openai.audio.transcriptions.create({ file: fs.createReadStream(audioPath), model: 'whisper-1' });
+                            break;
+                        } catch(wErr) {
+                            whisperAttempt++;
+                            if (whisperAttempt >= 3) throw wErr;
+                            console.warn(`${ts()} ⚠️ Whisper retry ${whisperAttempt}/3: ${wErr.message.slice(0,80)}`);
+                            await new Promise(r => setTimeout(r, 2000 * whisperAttempt));
+                        }
+                    }
                     originalText = tr.text;
                     console.log(`${ts()} 📝 Whisper OK: ${originalText.length} chars`);
                 } else {
@@ -485,10 +511,21 @@ app.post('/api/process-yt', authenticate, async (req, res) => {
 
             setJobProgress(jobId, `Se descarcă video ${quality}p și se extrage transcrierea...`);
 
-            const [aiData] = await Promise.all([
-                getTranscriptAndTranslation(cleanUrl, videoId, limba),
-                downloadVideo(cleanUrl, outputPath, quality),
-            ]);
+            let aiData;
+            if (platform !== 'youtube') {
+                // Non-YT (TikTok/IG/FB): mai întâi video, apoi audio din el — evită proxy overload
+                setJobProgress(jobId, `Se descarcă video ${quality}p...`);
+                await downloadVideo(cleanUrl, outputPath, quality);
+                setJobProgress(jobId, 'Se transcrie audio...');
+                aiData = await getTranscriptAndTranslation(cleanUrl, videoId, limba, outputPath);
+            } else {
+                // YouTube: paralel (CDN rapid, fără conflict proxy)
+                const [result] = await Promise.all([
+                    getTranscriptAndTranslation(cleanUrl, videoId, limba),
+                    downloadVideo(cleanUrl, outputPath, quality),
+                ]);
+                aiData = result;
+            }
 
             setJobProgress(jobId, 'Se finalizează...');
             await VideoCache.create({ videoId, originalText: aiData.original, translatedText: aiData.translated }).catch(() => {});
