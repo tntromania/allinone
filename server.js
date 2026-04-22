@@ -242,32 +242,43 @@ const getTranscriptAndTranslation = async (url, videoId, limba = 'română', exi
     const audioPath = path.join(DOWNLOAD_DIR, `audio_${videoId}.mp3`);
 
     // Funcție internă: descarcă audio cu yt-dlp direct (fără CDN URL)
+    // Folosit doar ca fallback final dacă nu există video local
     async function downloadAudioDirect() {
         if (fs.existsSync(audioPath)) try { fs.unlinkSync(audioPath); } catch(e) {}
         await runYtDlp([
             ...baseArgs(),
             '-f', 'ba/bestaudio/best',
-            '--extract-audio', '--audio-format', 'mp3', '--audio-quality', '0',
+            '--extract-audio', '--audio-format', 'mp3', '--audio-quality', '5',
             '--no-playlist',
             '-o', audioPath, url
         ], { timeout: 300000 });
     }
 
-    // Funcție internă: extrage audio din videoul deja descărcat (ffmpeg, fără yt-dlp)
+    // Funcție internă: extrage audio din videoul deja descărcat (ffmpeg, GRATIS · fără proxy)
+    // 64k mono = ~30MB/oră, perfect pentru Whisper (speech), sub limita de 25MB până la ~60 min
     async function extractAudioFromVideo(videoPath) {
         if (fs.existsSync(audioPath)) try { fs.unlinkSync(audioPath); } catch(e) {}
-        console.log(`${ts()} 🎬 Extrag audio din video existent (${(fs.statSync(videoPath).size/1024/1024).toFixed(2)}MB)...`);
+        console.log(`${ts()} 🎬 Extrag audio din video existent (${(fs.statSync(videoPath).size/1024/1024).toFixed(2)}MB) → mp3 64k mono...`);
         await new Promise((res, rej) => execFile('ffmpeg', [
-            '-i', videoPath, '-vn', '-acodec', 'libmp3lame', '-q:a', '0', '-y', audioPath
+            '-i', videoPath, '-vn',
+            '-ac', '1',                 // mono (suficient pentru speech)
+            '-ar', '16000',             // 16kHz (nativ pentru Whisper)
+            '-acodec', 'libmp3lame', '-b:a', '64k',
+            '-y', audioPath
         ], { timeout: 120000 }, err => err ? rej(new Error('ffmpeg extract: ' + err.message.slice(0, 100))) : res()));
     }
 
     try {
         // ── 1. Subtitrări native ──────────────────────────────────
+        // Luăm TOATE limbile: subs sunt ~50KB/fișier (neglijabil vs video 50MB),
+        // iar dacă găsim subs în limba originală (Hindi, Coreeană etc.) evităm Whisper = economie reală.
         try {
-            await runYtDlp([...baseArgs(), '--write-auto-subs', '--write-subs', '--sub-langs', 'all', '--sub-format', 'vtt', '--skip-download', '-o', path.join(DOWNLOAD_DIR, `sub_${videoId}.%(ext)s`), url], { timeout: 35000 });
+            await runYtDlp([...baseArgs(), '--write-auto-subs', '--write-subs', '--sub-langs', 'all', '--sub-format', 'vtt', '--skip-download', '-o', path.join(DOWNLOAD_DIR, `sub_${videoId}.%(ext)s`), url], { timeout: 30000 });
             const subDir = fs.readdirSync(DOWNLOAD_DIR).filter(f => f.startsWith(`sub_${videoId}`) && f.endsWith('.vtt'));
-            const preferred = subDir.find(f => /\.(ro|en)\.vtt$/.test(f)) || subDir[0];
+            // Preferință: ro > en > orice altă limbă (va fi tradusă oricum de GPT)
+            const preferred = subDir.find(f => /\.ro\.vtt$/.test(f))
+                           || subDir.find(f => /\.en\.vtt$/.test(f))
+                           || subDir[0];
             if (preferred) {
                 const subFile = path.join(DOWNLOAD_DIR, preferred);
                 const raw = fs.readFileSync(subFile, 'utf8');
@@ -279,25 +290,28 @@ const getTranscriptAndTranslation = async (url, videoId, limba = 'română', exi
 
         // ── 2. Whisper fallback ───────────────────────────────────
         if (!originalText) {
-            console.log(`${ts()} 🎙 Whisper fallback | non-yt=${isNonYT}`);
+            console.log(`${ts()} 🎙 Whisper fallback | non-yt=${isNonYT} | hasLocalVideo=${!!existingVideoPath}`);
             try {
-                if (isNonYT) {
-                    // Non-YouTube: folosește videoul deja descărcat dacă există (evită al doilea yt-dlp)
-                    // Altfel descarcă audio separat cu yt-dlp
-                    if (existingVideoPath && fs.existsSync(existingVideoPath) && fs.statSync(existingVideoPath).size > 50*1024) {
-                        await extractAudioFromVideo(existingVideoPath);
-                    } else {
-                        await downloadAudioDirect();
-                    }
+                // PRIORITATE MAXIMĂ: dacă avem deja videoul local, extragem audio din el (fără proxy!)
+                // Se aplică la TOATE platformele (YouTube, TikTok, IG, FB) dacă video-ul e deja pe disc
+                if (existingVideoPath && fs.existsSync(existingVideoPath) && fs.statSync(existingVideoPath).size > 50*1024) {
+                    await extractAudioFromVideo(existingVideoPath);
+                } else if (isNonYT) {
+                    // Non-YT fără video local: trebuie yt-dlp (rar se întâmplă)
+                    await downloadAudioDirect();
                 } else {
-                    // YouTube: încearcă CDN URL mai întâi (mai rapid)
+                    // YouTube fără video local (nu ar trebui să se întâmple în noul pipeline)
+                    // Fallback: CDN URL rapid pentru audio
                     try {
                         const { stdout } = await runYtDlp([...baseArgs(), '--get-url', '-f', 'ba/bestaudio/best', '--no-playlist', url], { timeout: 45000 });
                         const audioUrl = stdout.split('\n').find(u => u.startsWith('http'));
                         if (!audioUrl) throw new Error('No CDN URL');
                         const tempRaw = audioPath + '.tmp';
                         await curlDownload(audioUrl, tempRaw, 120, true);
-                        await new Promise((res,rej) => execFile('ffmpeg', ['-i', tempRaw, '-vn', '-acodec', 'libmp3lame', '-q:a', '0', '-y', audioPath], { timeout: 120000 }, err => err ? rej(err) : res()));
+                        await new Promise((res,rej) => execFile('ffmpeg', [
+                            '-i', tempRaw, '-vn', '-ac', '1', '-ar', '16000',
+                            '-acodec', 'libmp3lame', '-b:a', '64k', '-y', audioPath
+                        ], { timeout: 120000 }, err => err ? rej(err) : res()));
                         try { fs.unlinkSync(tempRaw); } catch(e) {}
                     } catch(e) {
                         console.log(`${ts()} ⚠️ CDN audio fail, fallback direct: ${e.message.slice(0,60)}`);
@@ -306,24 +320,30 @@ const getTranscriptAndTranslation = async (url, videoId, limba = 'română', exi
                 }
 
                 if (fs.existsSync(audioPath) && fs.statSync(audioPath).size > 1000) {
-                    console.log(`${ts()} 🎙 Whisper pe ${(fs.statSync(audioPath).size/1024).toFixed(0)}KB audio...`);
-                    // Retry Whisper de 3 ori în caz de Connection error
+                    const sizeKB = fs.statSync(audioPath).size/1024;
+                    // Safety check: Whisper acceptă max 25MB. Skip dacă e prea mare.
+                    if (sizeKB > 25000) {
+                        console.warn(`${ts()} ⚠️ Audio prea mare pentru Whisper (${sizeKB.toFixed(0)}KB > 25MB). Skip.`);
+                        return { original: '', translated: '' };
+                    }
+                    console.log(`${ts()} 🎙 Whisper pe ${sizeKB.toFixed(0)}KB audio...`);
+                    // Retry Whisper doar de 2 ori (era 3) — reduce cost în caz de eroare transitorie
                     let tr, whisperAttempt = 0;
-                    while (whisperAttempt < 3) {
+                    while (whisperAttempt < 2) {
                         try {
                             tr = await openai.audio.transcriptions.create({ file: fs.createReadStream(audioPath), model: 'whisper-1' });
                             break;
                         } catch(wErr) {
                             whisperAttempt++;
-                            if (whisperAttempt >= 3) throw wErr;
-                            console.warn(`${ts()} ⚠️ Whisper retry ${whisperAttempt}/3: ${wErr.message.slice(0,80)}`);
+                            if (whisperAttempt >= 2) throw wErr;
+                            console.warn(`${ts()} ⚠️ Whisper retry ${whisperAttempt}/2: ${wErr.message.slice(0,80)}`);
                             await new Promise(r => setTimeout(r, 2000 * whisperAttempt));
                         }
                     }
                     originalText = tr.text;
                     console.log(`${ts()} 📝 Whisper OK: ${originalText.length} chars`);
                 } else {
-                    console.warn(`${ts()} ⚠️ Audio fie lipsă fie prea mic după download`);
+                    console.warn(`${ts()} ⚠️ Audio fie lipsă fie prea mic după extracție`);
                 }
             } catch(e) {
                 console.error(`${ts()} ❌ Whisper fail: ${e.message.slice(0,200)}`);
@@ -513,18 +533,23 @@ app.post('/api/process-yt', authenticate, async (req, res) => {
 
             let aiData;
             if (platform !== 'youtube') {
-                // Non-YT (TikTok/IG/FB): mai întâi video, apoi audio din el — evită proxy overload
+                // Non-YT (TikTok/IG/FB): video primul, apoi transcriere din el
                 setJobProgress(jobId, `Se descarcă video ${quality}p...`);
                 await downloadVideo(cleanUrl, outputPath, quality);
                 setJobProgress(jobId, 'Se transcrie audio...');
                 aiData = await getTranscriptAndTranslation(cleanUrl, videoId, limba, outputPath);
             } else {
-                // YouTube: paralel (CDN rapid, fără conflict proxy)
+                // YouTube: video + subtitrări în paralel (subs sunt light, video greu)
+                // Dacă subs lipsesc, Whisper extrage din video-ul local (zero trafic extra prin proxy)
+                setJobProgress(jobId, `Se descarcă video ${quality}p + subtitrări...`);
                 const [result] = await Promise.all([
-                    getTranscriptAndTranslation(cleanUrl, videoId, limba),
+                    getTranscriptAndTranslation(cleanUrl, videoId, limba, outputPath /* va fi gata la nevoie */),
                     downloadVideo(cleanUrl, outputPath, quality),
                 ]);
                 aiData = result;
+                // Edge case: dacă subs au lipsit și Whisper a rulat înainte ca video să fie gata,
+                // Whisper folosește audio CDN. Dacă video era gata, folosește audio local.
+                // În ambele cazuri NU se mai face al 2-lea download audio prin proxy dublat.
             }
 
             setJobProgress(jobId, 'Se finalizează...');
@@ -588,37 +613,103 @@ app.post('/api/translate', authenticate, async (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════════════
-// ██ /api/generate — Voice Generation AI33
+// ██ /api/generate — Voice Generation AI33 (ElevenLabs + Minimax)
 // ══════════════════════════════════════════════════════════════
 app.post('/api/generate', authenticate, async (req, res) => {
     try {
-        const { text, voiceId, voice, stability, similarity_boost, speed } = req.body;
+        const {
+            text, voiceId, voice, provider,
+            // ElevenLabs params
+            stability, similarity_boost, speed,
+            // Minimax params
+            minimaxVoiceId, pitch, vol, language_boost
+        } = req.body;
+
         if (!text) return res.status(400).json({ error: 'Text lipsă.' });
 
+        // ── Credit check ─────────────────────────────────────────
         const cost = text.replace(/\s+/g, '').length;
         const balance = await hubAPI.checkCredits(req.userId);
-        if ((balance.voice_characters || 0) < cost) return res.status(403).json({ error: `Caractere insuficiente. Ai nevoie de ${cost}.` });
+        if ((balance.voice_characters || 0) < cost) {
+            return res.status(403).json({ error: `Caractere insuficiente. Ai nevoie de ${cost}.` });
+        }
 
-        const resolvedVoiceId = voiceId || 'nPczCjzI2devNBz1zQrb';
+        // ── Provider detection ───────────────────────────────────
+        // Prioritate: (1) câmp explicit `provider`, (2) detectare după format ID
+        // Minimax IDs sunt numerice lungi (ex: "209533299589205")
+        // ElevenLabs IDs sunt alfanumerice (ex: "CwhRBWXzGAHq8TQ4Fs17")
+        const rawId = voiceId || minimaxVoiceId || '';
+        const isMinimax = provider === 'minimax' || /^\d{10,}$/.test(rawId);
 
-        // FIX #4 server-side: clamp speed la 0.70–1.20 conform API
-        const clampedSpeed = Math.min(1.20, Math.max(0.70, parseFloat(speed) || 1.0));
+        let ai33Resp, ai33Url, ai33Body;
 
-        let ai33Resp;
+        if (isMinimax) {
+            // ── MINIMAX (conform AI33 API docs oficiale) ─────────
+            // Endpoint: /v1m/task/text-to-speech
+            // Model: speech-2.6-hd
+            // vol: 0.5-2.0, pitch: -12..12, speed: 0.01-10
+            const mmVoiceId = minimaxVoiceId || voiceId;
+            if (!mmVoiceId) return res.status(400).json({ error: 'Voice ID Minimax lipsă.' });
+
+            const clampedSpeed = Math.min(10.0, Math.max(0.01, parseFloat(speed) || 1.0));
+            const clampedPitch = Math.min(12, Math.max(-12, parseInt(pitch) || 0));
+            const clampedVol = Math.min(2.0, Math.max(0.5, parseFloat(vol) || 1.0));
+
+            ai33Url = `${AI33_BASE_URL}/v1m/task/text-to-speech`;
+            ai33Body = {
+                text: text.substring(0, 9000),
+                model: 'speech-2.6-hd',
+                voice_setting: {
+                    voice_id: mmVoiceId,
+                    vol: clampedVol,
+                    pitch: clampedPitch,
+                    speed: clampedSpeed,
+                },
+                language_boost: language_boost || 'Auto',
+                with_transcript: false,
+            };
+            console.log(`${ts()} 🎤 Generare Minimax | voice=${mmVoiceId} | speed=${clampedSpeed} | pitch=${clampedPitch} | vol=${clampedVol}`);
+        } else {
+            // ── ELEVENLABS ───────────────────────────────────────
+            const resolvedVoiceId = voiceId || 'nPczCjzI2devNBz1zQrb';
+            const clampedSpeed = Math.min(1.20, Math.max(0.70, parseFloat(speed) || 1.0));
+
+            ai33Url = `${AI33_BASE_URL}/v1/text-to-speech/${resolvedVoiceId}?output_format=mp3_44100_128`;
+            ai33Body = {
+                text,
+                model_id: 'eleven_multilingual_v2',
+                voice_settings: {
+                    stability: parseFloat(stability) || 0.5,
+                    similarity_boost: parseFloat(similarity_boost) || 0.75,
+                    speed: clampedSpeed,
+                },
+                with_transcript: false,
+            };
+            console.log(`${ts()} 🎤 Generare ElevenLabs | voice=${resolvedVoiceId} | speed=${clampedSpeed}`);
+        }
+
+        // ── Cerere către AI33 ────────────────────────────────────
         try {
-            ai33Resp = await fetch(`${AI33_BASE_URL}/v1/text-to-speech/${resolvedVoiceId}?output_format=mp3_44100_128`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json', 'xi-api-key': AI33_API_KEY },
-                body: JSON.stringify({ text, model_id: 'eleven_multilingual_v2', voice_settings: { stability: parseFloat(stability)||0.5, similarity_boost: parseFloat(similarity_boost)||0.75, speed: clampedSpeed }, with_transcript: false }),
+            ai33Resp = await fetch(ai33Url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'xi-api-key': AI33_API_KEY },
+                body: JSON.stringify(ai33Body),
                 signal: AbortSignal.timeout(15000),
             });
         } catch(fetchErr) {
-            if (fetchErr.name === 'TimeoutError' || fetchErr.name === 'AbortError') return res.status(503).json({ error: 'Serverul de voce nu răspunde.' });
+            if (fetchErr.name === 'TimeoutError' || fetchErr.name === 'AbortError') {
+                return res.status(503).json({ error: 'Serverul de voce nu răspunde.' });
+            }
             throw fetchErr;
         }
 
         if (!ai33Resp.ok) {
             if (ai33Resp.status === 429) return res.status(429).json({ error: 'Suprasolicitat. Așteaptă câteva secunde.' });
-            throw new Error(`AI33 eroare ${ai33Resp.status}`);
+            // Încearcă să citești mesajul de eroare din AI33 pentru debugging
+            let errDetail = '';
+            try { errDetail = (await ai33Resp.text()).slice(0, 200); } catch(_) {}
+            console.error(`${ts()} ❌ AI33 eroare ${ai33Resp.status} [${isMinimax?'Minimax':'ElevenLabs'}]: ${errDetail}`);
+            throw new Error(`AI33 ${ai33Resp.status}: ${errDetail.slice(0, 100) || 'eroare necunoscută'}`);
         }
 
         const ai33Data = await ai33Resp.json();
@@ -633,6 +724,7 @@ app.post('/api/generate', authenticate, async (req, res) => {
         res.json({ audioUrl: `/download/${fileName}`, remaining_chars: (balance.voice_characters||0) - cost });
 
     } catch(error) {
+        console.error(`${ts()} ❌ /api/generate fail: ${error.message}`);
         res.status(500).json({ error: error.message || 'Eroare la generarea vocii.' });
     }
 });
