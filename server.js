@@ -134,9 +134,13 @@ function curlDownload(url, outputPath, timeoutSec = 300, useProxy = false) {
 }
 
 // ── DOWNLOAD VIDEO 1080p ─────────────────────────────────────
-const downloadVideo = async (url, outputPath, quality = '1080') => {
+// Platforme care nu suportă descărcare directă CDN — trebuie yt-dlp nativ
+const NON_YT_PLATFORMS = /tiktok\.com|instagram\.com|facebook\.com|fb\.watch|twitter\.com|x\.com|vm\.tiktok|vt\.tiktok/;
+
+const downloadVideo = async (url, outputPath, quality = '720') => {
     const t0 = Date.now();
-    console.log(`${ts()} ▶ downloadVideo (${quality}p)`);
+    const isNonYT = NON_YT_PLATFORMS.test(url);
+    console.log(`${ts()} ▶ downloadVideo (${quality}p) | non-yt=${isNonYT}`);
     if (fs.existsSync(outputPath)) try { fs.unlinkSync(outputPath); } catch(e) {}
 
     const qualityMap = {
@@ -144,7 +148,42 @@ const downloadVideo = async (url, outputPath, quality = '1080') => {
         '720':  'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best[height<=720]/best',
         '480':  'bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=480]+bestaudio/best[height<=480]/best',
     };
-    const fmt = qualityMap[quality] || qualityMap['1080'];
+    const fmt = qualityMap[quality] || qualityMap['720'];
+
+    // ── Platforme non-YouTube: yt-dlp direct (fără CDN URL redirect) ──
+    if (isNonYT) {
+        const directStrategies = [
+            { label: `${quality}p`, format: fmt },
+            { label: 'best-mp4', format: 'bestvideo[ext=mp4]+bestaudio/best[ext=mp4]/best' },
+            { label: 'best', format: 'best' },
+        ];
+        let lastErr = null;
+        for (const strat of directStrategies) {
+            if (fs.existsSync(outputPath)) try { fs.unlinkSync(outputPath); } catch(e) {}
+            try {
+                await runYtDlp([
+                    ...baseArgs(),
+                    '-f', strat.format,
+                    '--merge-output-format', 'mp4',
+                    '--concurrent-fragments', '4',
+                    '--no-playlist',
+                    '-o', outputPath,
+                    url,
+                ], { timeout: 300000 });
+                if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 50*1024) {
+                    console.log(`${ts()} ✅ Video OK [${strat.label}]: ${(fs.statSync(outputPath).size/1024/1024).toFixed(2)}MB | ${elapsed(t0)}`);
+                    return;
+                }
+                lastErr = new Error(`Fișier prea mic după strategie "${strat.label}"`);
+            } catch(e) {
+                lastErr = e;
+                console.warn(`${ts()} ⚠️ Strategie "${strat.label}" eșuată: ${e.message.slice(0, 120)}`);
+            }
+        }
+        throw new Error(lastErr?.message || 'Nu am putut descărca videoul.');
+    }
+
+    // ── YouTube: strategie CDN URL (mai rapidă) ──────────────────────
     const strategies = [{ label: `${quality}p`, format: fmt }, { label: 'best', format: 'bestvideo+bestaudio/best' }];
     let lastError = null, proxyRequired = false;
 
@@ -341,7 +380,7 @@ app.get('/api/job/:jobId', authenticate, (req, res) => {
 // Răspunde imediat cu jobId, procesează în background
 // ══════════════════════════════════════════════════════════════
 app.post('/api/process-yt', authenticate, async (req, res) => {
-    const { url, quality = '1080', limba = 'română' } = req.body;
+    const { url, quality = '720', limba = 'română' } = req.body;
     if (!url) return res.status(400).json({ error: 'URL lipsă' });
 
     const parsed = sanitizeVideoUrl(url);
@@ -368,24 +407,36 @@ app.post('/api/process-yt', authenticate, async (req, res) => {
     async function refundCredits(userId, amount) {
         for (let attempt = 1; attempt <= 3; attempt++) {
             try {
-                const r = await fetch(`${process.env.HUB_URL}/api/internal/refund-credits`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'x-internal-key': process.env.INTERNAL_API_KEY },
-                    body: JSON.stringify({ userId, amount }),
-                    signal: AbortSignal.timeout(8000),
-                });
+                const controller = new AbortController();
+                const tid = setTimeout(() => controller.abort(), 8000);
+                let r;
+                try {
+                    r = await fetch(`${process.env.HUB_URL}/api/internal/refund-credits`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'x-internal-key': process.env.INTERNAL_API_KEY },
+                        body: JSON.stringify({ userId, amount }),
+                        signal: controller.signal,
+                    });
+                } finally { clearTimeout(tid); }
+
+                const rawText = await r.text();
                 if (r.ok) {
-                    const rd = await r.json();
-                    console.log(`${ts()} 🔄 Refund ${amount} credite (attempt ${attempt}) → ${rd.credits}`);
-                    return true;
+                    try {
+                        const rd = JSON.parse(rawText);
+                        console.log(`${ts()} 🔄 Refund ${amount} credite (attempt ${attempt}) → ${rd.credits}`);
+                        return true;
+                    } catch(_) {
+                        console.log(`${ts()} 🔄 Refund OK (attempt ${attempt}), răspuns non-JSON: ${rawText.slice(0, 80)}`);
+                        return true; // r.ok = succes chiar dacă nu e JSON valid
+                    }
                 }
-                console.warn(`${ts()} ⚠️ Refund attempt ${attempt} failed: HTTP ${r.status}`);
+                console.warn(`${ts()} ⚠️ Refund attempt ${attempt} failed: HTTP ${r.status} — ${rawText.slice(0, 150)}`);
             } catch (refErr) {
                 console.warn(`${ts()} ⚠️ Refund attempt ${attempt} error: ${refErr.message}`);
             }
             if (attempt < 3) await new Promise(r => setTimeout(r, 1500 * attempt));
         }
-        console.error(`${ts()} ❌ Refund EȘUAT pentru userId=${userId} amount=${amount} — creditele nu au fost recuperate!`);
+        console.error(`${ts()} ❌ Refund EȘUAT userId=${userId} amount=${amount}. Verifică HUB_URL și INTERNAL_API_KEY.`);
         return false;
     }
 
