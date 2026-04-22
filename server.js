@@ -238,52 +238,83 @@ const downloadVideo = async (url, outputPath, quality = '720') => {
 const getTranscriptAndTranslation = async (url, videoId, limba = 'română') => {
     const t0 = Date.now();
     let originalText = '';
+    const isNonYT = NON_YT_PLATFORMS.test(url);
     const audioPath = path.join(DOWNLOAD_DIR, `audio_${videoId}.mp3`);
+
+    // Funcție internă: descarcă audio cu yt-dlp direct (fără CDN URL)
+    async function downloadAudioDirect() {
+        if (fs.existsSync(audioPath)) try { fs.unlinkSync(audioPath); } catch(e) {}
+        await runYtDlp([
+            ...baseArgs(),
+            '-f', 'ba/bestaudio/best',
+            '--extract-audio', '--audio-format', 'mp3', '--audio-quality', '0',
+            '--no-playlist',
+            '-o', audioPath, url
+        ], { timeout: 300000 });
+    }
+
     try {
-        // Subtitrări native (YouTube, TikTok, Instagram, Facebook — orice platformă)
+        // ── 1. Subtitrări native ──────────────────────────────────
         try {
             await runYtDlp([...baseArgs(), '--write-auto-subs', '--write-subs', '--sub-langs', 'all', '--sub-format', 'vtt', '--skip-download', '-o', path.join(DOWNLOAD_DIR, `sub_${videoId}.%(ext)s`), url], { timeout: 35000 });
-            // Caută primul fișier .vtt generat, preferând ro/en
             const subDir = fs.readdirSync(DOWNLOAD_DIR).filter(f => f.startsWith(`sub_${videoId}`) && f.endsWith('.vtt'));
             const preferred = subDir.find(f => /\.(ro|en)\.vtt$/.test(f)) || subDir[0];
             if (preferred) {
                 const subFile = path.join(DOWNLOAD_DIR, preferred);
                 const raw = fs.readFileSync(subFile, 'utf8');
                 const clean = raw.replace(/WEBVTT[\s\S]*?\n\n/,'').replace(/\d{2}:\d{2}:\d{2}\.\d{3} --> [\s\S]*?\n/g,'').replace(/<[^>]+>/g,'').replace(/\n{2,}/g,' ').trim();
-                // Curăță toate .vtt ale acestui video
                 subDir.forEach(f => { try { fs.unlinkSync(path.join(DOWNLOAD_DIR, f)); } catch(e) {} });
-                if (clean.length > 50) { originalText = clean; }
+                if (clean.length > 50) { originalText = clean; console.log(`${ts()} 📝 Subtitrări native găsite (${originalText.length} chars)`); }
             }
-        } catch(e) {}
+        } catch(e) { console.log(`${ts()} ℹ️ Fără subtitrări native: ${e.message.slice(0,80)}`); }
 
-        // Whisper fallback
+        // ── 2. Whisper fallback ───────────────────────────────────
         if (!originalText) {
+            console.log(`${ts()} 🎙 Whisper fallback | non-yt=${isNonYT}`);
             try {
-                const { stdout } = await runYtDlp([...baseArgs(), '--get-url', '-f', 'ba/bestaudio/best', '--no-playlist', url], { timeout: 45000 });
-                const audioUrl = stdout.split('\n').find(u => u.startsWith('http'));
-                if (audioUrl) {
-                    const tempRaw = audioPath + '.tmp';
-                    await curlDownload(audioUrl, tempRaw, 120, true);
-                    await new Promise((res,rej) => execFile('ffmpeg', ['-i', tempRaw, '-vn', '-acodec', 'libmp3lame', '-q:a', '0', '-y', audioPath], { timeout: 120000 }, err => err ? rej(err) : res()));
-                    try { fs.unlinkSync(tempRaw); } catch(e) {}
+                if (isNonYT) {
+                    // Non-YouTube: yt-dlp direct (TikTok/IG/FB CDN refuză curl)
+                    await downloadAudioDirect();
+                } else {
+                    // YouTube: încearcă CDN URL mai întâi (mai rapid)
+                    try {
+                        const { stdout } = await runYtDlp([...baseArgs(), '--get-url', '-f', 'ba/bestaudio/best', '--no-playlist', url], { timeout: 45000 });
+                        const audioUrl = stdout.split('\n').find(u => u.startsWith('http'));
+                        if (!audioUrl) throw new Error('No CDN URL');
+                        const tempRaw = audioPath + '.tmp';
+                        await curlDownload(audioUrl, tempRaw, 120, true);
+                        await new Promise((res,rej) => execFile('ffmpeg', ['-i', tempRaw, '-vn', '-acodec', 'libmp3lame', '-q:a', '0', '-y', audioPath], { timeout: 120000 }, err => err ? rej(err) : res()));
+                        try { fs.unlinkSync(tempRaw); } catch(e) {}
+                    } catch(e) {
+                        console.log(`${ts()} ⚠️ CDN audio fail, fallback direct: ${e.message.slice(0,60)}`);
+                        await downloadAudioDirect();
+                    }
+                }
+
+                if (fs.existsSync(audioPath) && fs.statSync(audioPath).size > 1000) {
+                    console.log(`${ts()} 🎙 Whisper pe ${(fs.statSync(audioPath).size/1024).toFixed(0)}KB audio...`);
+                    const tr = await openai.audio.transcriptions.create({ file: fs.createReadStream(audioPath), model: 'whisper-1' });
+                    originalText = tr.text;
+                    console.log(`${ts()} 📝 Whisper OK: ${originalText.length} chars`);
+                } else {
+                    console.warn(`${ts()} ⚠️ Audio fie lipsă fie prea mic după download`);
                 }
             } catch(e) {
-                await runYtDlp([...baseArgs(), '-f', 'ba/bestaudio/best', '--extract-audio', '--audio-format', 'mp3', '--audio-quality', '0', '-o', audioPath, url], { timeout: 300000 }).catch(()=>{});
-            }
-            if (fs.existsSync(audioPath) && fs.statSync(audioPath).size > 1000) {
-                const tr = await openai.audio.transcriptions.create({ file: fs.createReadStream(audioPath), model: 'whisper-1' });
-                originalText = tr.text;
+                console.error(`${ts()} ❌ Whisper fail: ${e.message.slice(0,200)}`);
             }
         }
     } catch(err) {
         console.error(`${ts()} ❌ Transcriere fail: ${err.message}`);
-        return { original: '', translated: '' };
     } finally {
         if (fs.existsSync(audioPath)) try { fs.unlinkSync(audioPath); } catch(e) {}
     }
 
-    if (!originalText) return { original: '', translated: '' };
+    if (!originalText) {
+        console.warn(`${ts()} ⚠️ Transcriere goală pentru ${videoId}`);
+        return { original: '', translated: '' };
+    }
 
+    // ── 3. Traducere ─────────────────────────────────────────────
     try {
         const completion = await openai.chat.completions.create({
             model: 'gpt-4o-mini',
@@ -292,8 +323,11 @@ const getTranscriptAndTranslation = async (url, videoId, limba = 'română') => 
                 { role: 'user', content: originalText.substring(0, 10000) }
             ],
         });
-        return { original: originalText, translated: completion.choices[0].message.content };
+        const translated = completion.choices[0].message.content;
+        console.log(`${ts()} 🌐 Traducere OK: ${translated.length} chars`);
+        return { original: originalText, translated };
     } catch(e) {
+        console.warn(`${ts()} ⚠️ Traducere fail, folosesc originalul: ${e.message}`);
         return { original: originalText, translated: originalText };
     }
 };
