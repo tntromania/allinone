@@ -153,9 +153,9 @@ tailwind.config = {
     <!-- ── CARD INPUT ── -->
     <div class="bg-white border border-slate-200 rounded-[1.25rem] shadow-sm overflow-hidden">
       <div class="flex items-center gap-3 px-5 py-4 border-b border-slate-100 bg-slate-50">
-        <div class="w-8 h-8 rounded-xl bg-gradient-viralio flex items-center justify-center text-white text-sm shrink-0"><i class="fab fa-youtube"></i></div>
+        <div class="w-8 h-8 rounded-xl bg-gradient-viralio flex items-center justify-center text-white text-sm shrink-0 gap-0.5 flex-col" style="font-size:7px;line-height:1"><i class="fab fa-youtube"></i><i class="fab fa-tiktok"></i></div>
         <div>
-          <div class="font-bold text-slate-800 text-sm">Link-uri YouTube <span class="text-slate-400 font-medium text-xs">— până la 5 odată · procesare paralelă</span></div>
+          <div class="font-bold text-slate-800 text-sm">Link-uri video <span class="text-slate-400 font-medium text-xs">— YouTube · TikTok · Instagram · Facebook · până la 5 odată</span></div>
           <div class="text-[0.65rem] text-slate-400 font-medium">Paste link-uri · procesare 1080p automată · batch</div>
         </div>
       </div>
@@ -166,7 +166,7 @@ tailwind.config = {
           <div id="url-list" class="space-y-2">
             <div class="url-row">
               <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300 text-sm pointer-events-none" style="position:absolute;left:14px;top:50%;transform:translateY(-50%)"><i class="fas fa-link"></i></span>
-              <input type="text" placeholder="https://youtube.com/watch?v=..." class="url-input w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-9 py-3 text-sm font-medium text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all placeholder-slate-300" style="padding-left:36px">
+              <input type="text" placeholder="https://youtube.com/... sau tiktok.com/... sau instagram.com/reel/..." class="url-input w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-9 py-3 text-sm font-medium text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all placeholder-slate-300" style="padding-left:36px">
               <button class="remove-btn hidden" onclick="removeUrl(this)"><i class="fas fa-xmark text-sm"></i></button>
             </div>
           </div>
@@ -363,7 +363,7 @@ function createUrlRow() {
   div.style.position = 'relative';
   div.innerHTML = `
     <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);pointer-events:none;color:#cbd5e1;font-size:.875rem"><i class="fas fa-link"></i></span>
-    <input type="text" placeholder="https://youtube.com/watch?v=..." class="url-input w-full bg-slate-50 border border-slate-200 rounded-xl py-3 text-sm font-medium text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all placeholder-slate-300" style="padding-left:36px;padding-right:36px">
+    <input type="text" placeholder="https://youtube.com/... sau tiktok.com/... sau instagram.com/reel/..." class="url-input w-full bg-slate-50 border border-slate-200 rounded-xl py-3 text-sm font-medium text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all placeholder-slate-300" style="padding-left:36px;padding-right:36px">
     <button class="remove-btn" onclick="removeUrl(this)" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#cbd5e1;padding:4px;transition:color .2s" onmouseenter="this.style.color='#f87171'" onmouseleave="this.style.color='#cbd5e1'"><i class="fas fa-xmark text-sm"></i></button>
   `;
   return div;
@@ -871,9 +871,9 @@ async function runPipeline() {
   const urlInputs = [...document.querySelectorAll('.url-input')]
     .map(i => i.value.trim()).filter(Boolean);
 
-  if (urlInputs.length === 0) { alert('Lipește cel puțin un link YouTube!'); return; }
-  const invalid = urlInputs.filter(u => !/youtu/.test(u));
-  if (invalid.length > 0) { alert('Link YouTube invalid:\n' + invalid.join('\n')); return; }
+  if (urlInputs.length === 0) { alert('Lipește cel puțin un link video!'); return; }
+  const invalid = urlInputs.filter(u => !/youtu|tiktok|instagram|facebook|fb\.watch|vm\.tiktok|vt\.tiktok/.test(u));
+  if (invalid.length > 0) { alert('Link invalid (trebuie să fie YouTube, TikTok, Instagram sau Facebook):\n' + invalid.join('\n')); return; }
 
   const quality    = document.getElementById('dl-quality').value;
   const limba      = document.getElementById('dl-limba').value;

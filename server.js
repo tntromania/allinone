@@ -59,12 +59,42 @@ const VideoCache = mongoose.models.VideoCache || mongoose.model('VideoCache', Ca
 function ts() { return `[${new Date().toISOString().slice(11, 23)}]`; }
 function elapsed(s) { const ms = Date.now() - s; return ms < 1000 ? `${ms}ms` : `${(ms/1000).toFixed(1)}s`; }
 
-function sanitizeYouTubeUrl(rawUrl) {
+function sanitizeVideoUrl(rawUrl) {
     const url = (rawUrl || '').trim();
-    const m = url.match(/(?:v=|youtu\.be\/|shorts\/)([\w-]{11})/);
-    if (m) return { cleanUrl: `https://www.youtube.com/watch?v=${m[1]}`, videoId: m[1] };
+
+    // ── YouTube ──────────────────────────────────────────────
+    const yt = url.match(/(?:v=|youtu\.be\/|shorts\/)([\w-]{11})/);
+    if (yt) return { cleanUrl: `https://www.youtube.com/watch?v=${yt[1]}`, videoId: yt[1], platform: 'youtube' };
+
+    // ── TikTok ───────────────────────────────────────────────
+    const tt = url.match(/tiktok\.com\/@[^/]+\/video\/(\d+)/);
+    if (tt) return { cleanUrl: url, videoId: `tt_${tt[1]}`, platform: 'tiktok' };
+    const ttShort = url.match(/(?:vm|vt)\.tiktok\.com\/([A-Za-z0-9]+)/);
+    if (ttShort) return { cleanUrl: url, videoId: `tt_${ttShort[1]}`, platform: 'tiktok' };
+
+    // ── Instagram ────────────────────────────────────────────
+    const ig = url.match(/instagram\.com\/(?:p|reel|tv)\/([A-Za-z0-9_-]+)/);
+    if (ig) return { cleanUrl: url, videoId: `ig_${ig[1]}`, platform: 'instagram' };
+
+    // ── Facebook ─────────────────────────────────────────────
+    const fb = url.match(/facebook\.com\/(?:watch\/?\?v=|[^/]+\/videos\/)(\d+)/);
+    if (fb) return { cleanUrl: url, videoId: `fb_${fb[1]}`, platform: 'facebook' };
+    const fbShort = url.match(/fb\.watch\/([A-Za-z0-9_-]+)/);
+    if (fbShort) return { cleanUrl: url, videoId: `fb_${fbShort[1]}`, platform: 'facebook' };
+
+    // ── Generic fallback (orice URL HTTPS valid suportat de yt-dlp) ──
+    try {
+        const parsed = new URL(url);
+        if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+            const id = 'gen_' + Buffer.from(url).toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(0, 20);
+            return { cleanUrl: url, videoId: id, platform: 'generic' };
+        }
+    } catch (_) {}
+
     return null;
 }
+// Alias pentru compatibilitate cu orice import extern
+const sanitizeYouTubeUrl = sanitizeVideoUrl;
 
 function runYtDlp(args, opts = {}) {
     return new Promise((resolve, reject) => {
@@ -310,12 +340,12 @@ app.post('/api/process-yt', authenticate, async (req, res) => {
     const { url, quality = '1080', limba = 'română' } = req.body;
     if (!url) return res.status(400).json({ error: 'URL lipsă' });
 
-    const parsed = sanitizeYouTubeUrl(url);
-    if (!parsed) return res.status(400).json({ error: 'Link YouTube invalid.' });
+    const parsed = sanitizeVideoUrl(url);
+    if (!parsed) return res.status(400).json({ error: 'Link invalid. Suportăm YouTube, TikTok, Instagram, Facebook și alte platforme.' });
 
-    const { cleanUrl, videoId } = parsed;
+    const { cleanUrl, videoId, platform } = parsed;
     const outputPath = path.join(DOWNLOAD_DIR, `${videoId}_${quality}.mp4`);
-    console.log(`\n${ts()} ══ /api/process-yt | ${videoId} | ${quality}p | ${limba}`);
+    console.log(`\n${ts()} ══ /api/process-yt | ${platform} | ${videoId} | ${quality}p | ${limba}`);
 
     // Verifică cache înainte să creeze job (răspuns instant)
     try {
@@ -330,10 +360,35 @@ app.post('/api/process-yt', authenticate, async (req, res) => {
     const jobId = newJob(req.userId);
     res.json({ status: 'queued', jobId });
 
+    // ── Funcție robustă de refund (încearcă de 3 ori) ──────────
+    async function refundCredits(userId, amount) {
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+                const r = await fetch(`${process.env.HUB_URL}/api/internal/refund-credits`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-internal-key': process.env.INTERNAL_API_KEY },
+                    body: JSON.stringify({ userId, amount }),
+                    signal: AbortSignal.timeout(8000),
+                });
+                if (r.ok) {
+                    const rd = await r.json();
+                    console.log(`${ts()} 🔄 Refund ${amount} credite (attempt ${attempt}) → ${rd.credits}`);
+                    return true;
+                }
+                console.warn(`${ts()} ⚠️ Refund attempt ${attempt} failed: HTTP ${r.status}`);
+            } catch (refErr) {
+                console.warn(`${ts()} ⚠️ Refund attempt ${attempt} error: ${refErr.message}`);
+            }
+            if (attempt < 3) await new Promise(r => setTimeout(r, 1500 * attempt));
+        }
+        console.error(`${ts()} ❌ Refund EȘUAT pentru userId=${userId} amount=${amount} — creditele nu au fost recuperate!`);
+        return false;
+    }
+
     // Procesează în background (fără await)
     (async () => {
         const t0 = Date.now();
-        let creditResult;
+        let creditResult = null;
         try {
             setJobProgress(jobId, 'Se verifică creditele...');
             try { creditResult = await hubAPI.useCredits(req.userId, 2); }
@@ -359,15 +414,13 @@ app.post('/api/process-yt', authenticate, async (req, res) => {
             });
 
         } catch(e) {
-            console.error(`${ts()} ❌ FAIL [${videoId}]: ${e.message.slice(0,300)}`);
+            console.error(`${ts()} ❌ FAIL [${platform}/${videoId}]: ${e.message.slice(0, 300)}`);
             if (fs.existsSync(outputPath)) try { fs.unlinkSync(outputPath); } catch(e2) {}
-            if (creditResult) {
-                try {
-                    const r = await fetch(`${process.env.HUB_URL}/api/internal/refund-credits`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-internal-key': process.env.INTERNAL_API_KEY }, body: JSON.stringify({ userId: req.userId, amount: 2 }) });
-                    if (r.ok) { const rd = await r.json(); console.log(`${ts()} 🔄 Refund 2 credite → ${rd.credits}`); }
-                } catch(refErr) {}
+            // ── Refund credite dacă au fost deja scăzute ──────────
+            if (creditResult !== null) {
+                await refundCredits(req.userId, 2);
             }
-            setJobError(jobId, 'Serverul nu a putut procesa videoul. Încearcă alt link.');
+            setJobError(jobId, 'Serverul nu a putut procesa videoul. Creditele au fost returnate. Încearcă alt link.');
         }
     })();
 });
