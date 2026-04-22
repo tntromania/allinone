@@ -1,1132 +1,1001 @@
 <!DOCTYPE html>
-<html lang="ro">
+<html lang="ro" class="scroll-smooth">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Auto Pipeline | Viralio</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-<script src="https://accounts.google.com/gsi/client" async defer></script>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-<link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
-<link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
-<link rel="shortcut icon" href="/assets/favicon.ico">
-<script>
-tailwind.config = {
-  theme: { extend: { fontFamily: { sans: ['Inter','sans-serif'] }, colors: { viralio: { 50:'#eef2ff',100:'#e0e7ff',500:'#6366f1',600:'#4f46e5',900:'#312e81',accent:'#ec4899' } } } }
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
+    <title>Voice AI | Viralio Studio</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Syne:wght@400;600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png?v=3">
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png?v=3">
+    <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png?v=3">
+    <link rel="manifest" href="/assets/site.webmanifest?v=3">
+    <link rel="shortcut icon" href="/assets/favicon.ico?v=3">
+
+    <!-- Voice Modal CSS -->
+    <link rel="stylesheet" href="/voice-modal.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: { 
+                        viralio: { 50: '#eef2ff', 100: '#e0e7ff', 200: '#c7d2fe', 500: '#6366f1', 600: '#4f46e5', 900: '#09090b', accent: '#ec4899' }
+                    },
+                    animation: { 'slide-up': 'slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards' },
+                    keyframes: { slideUp: { '0%': { opacity: 0, transform: 'translateY(20px)' }, '100%': { opacity: 1, transform: 'translateY(0)' } } }
+                }
+            }
+        }
+    </script>
+
+    <style>
+	@media (max-width: 640px) {
+    .fixed.bottom-5.right-5 {
+        bottom: 5.5rem !important;
+    }
 }
-</script>
-<style>
-  body { background:#F8FAFC; overflow-x:hidden; font-family:'Inter',sans-serif; }
-  .bg-gradient-viralio { background: linear-gradient(135deg,#4f46e5 0%,#ec4899 100%); }
-  ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#f1f5f9}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:10px}
+        body { background-color: #F8FAFC; font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; overflow-x: hidden; color: #09090b; }
+        .bg-gradient-viralio { background: linear-gradient(135deg, #4f46e5 0%, #ec4899 100%); }
+        
+        ::-webkit-scrollbar { width: 6px; } 
+        ::-webkit-scrollbar-track { background: transparent; } 
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-  /* LOGIN MODAL */
-  #login-modal{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);backdrop-filter:blur(8px);z-index:99999;align-items:center;justify-content:center;opacity:0;transition:.3s}
-  #login-modal.show{display:flex;opacity:1}
-  .modal-content{background:#fff;border-radius:28px;padding:40px;text-align:center;max-width:420px;width:90%;transform:translateY(20px);transition:.4s;position:relative}
-  #login-modal.show .modal-content{transform:translateY(0)}
+        .viralio-slider { -webkit-appearance: none; width: 100%; background: transparent; position: relative; z-index: 10; cursor: pointer; }
+        .viralio-slider:focus { outline: none; }
+        .viralio-slider::-webkit-slider-runnable-track { width: 100%; height: 6px; background: #e2e8f0; border-radius: 4px; }
+        .viralio-slider::-webkit-slider-thumb { height: 20px; width: 20px; border-radius: 50%; background: #fff; -webkit-appearance: none; margin-top: -7px; box-shadow: 0 4px 10px rgba(79, 70, 229, 0.3); border: 2px solid #4f46e5; transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+        .viralio-slider::-webkit-slider-thumb:hover { transform: scale(1.2); }
+        .slider-progress { position: absolute; top: 11px; left: 0; height: 6px; background: #4f46e5; border-radius: 4px; pointer-events: none; z-index: 5; }
 
-  /* VOICE GRID */
-  .vcard{transition:all .2s;cursor:pointer;border:1.5px solid #e2e8f0;border-radius:14px;padding:10px;background:#f8fafc}
-  .vcard:hover{border-color:#6366f1;background:#eef2ff;transform:translateY(-2px)}
-  .vcard.selected{border-color:#6366f1!important;background:#eef2ff!important;box-shadow:0 0 0 2px rgba(99,102,241,.25)!important}
+        #login-modal { display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(8px); z-index: 99999; align-items: center; justify-content: center; opacity: 0; transition: 0.3s; }
+        #login-modal.show { display: flex; opacity: 1; }
+        .modal-content { background: #ffffff; border-radius: 28px; padding: 40px; text-align: center; max-width: 420px; width: 90%; transform: translateY(20px); transition: 0.4s; box-shadow: 0 20px 40px rgba(0,0,0,0.1); }
+        #login-modal.show .modal-content { transform: translateY(0); }
 
-  /* SPINNER */
-  @keyframes spin{to{transform:rotate(360deg)}}
-  .spin{animation:spin .8s linear infinite;display:inline-block}
+        .loader { border: 3px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; display: none; }
+        .is-generating .loader { display: block; }
+        .is-generating .btn-text { display: none; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
 
-  /* PULSE */
-  @keyframes pulse-ring{0%,100%{opacity:.5}50%{opacity:1}}
-  .pulse{animation:pulse-ring 1.5s ease-in-out infinite}
+        .eq-bar { width: 4px; border-radius: 2px; background: #ec4899; height: 4px; transition: height 0.1s; }
+        .playing .eq-bar { animation: eqBounce 0.7s ease-in-out infinite alternate; }
+        @keyframes eqBounce { 0% { height: 4px; } 100% { height: 20px; } }
 
-  /* RANGE */
-  input[type=range]{-webkit-appearance:none;width:100%;height:4px;border-radius:99px;background:#e2e8f0;outline:none;cursor:pointer}
-  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#ec4899);box-shadow:0 2px 6px rgba(99,102,241,.4);cursor:pointer}
-
-  /* RIBBON */
-  .ribbon{background:linear-gradient(135deg,#4f46e5,#ec4899);color:#fff;border-radius:14px;padding:12px 18px}
-
-  /* STATUS BOXES */
-  .status-info{background:#eef2ff;border:1px solid #c7d2fe;color:#4338ca;border-radius:12px;padding:12px 14px}
-  .status-success{background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;border-radius:12px;padding:12px 14px}
-  .status-error{background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:12px;padding:12px 14px}
-
-  /* SHINE */
-  @keyframes shine{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
-  .animate-shine-fast{animation:shine 2s infinite}
-
-  /* URL ROW */
-  .url-row { position: relative; }
-  .url-row .remove-btn { position:absolute; right:12px; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; color:#cbd5e1; transition:color .2s; padding:4px; }
-  .url-row .remove-btn:hover { color:#f87171; }
-
-  /* VIDEO CARD */
-  .video-card { transition: box-shadow .2s; }
-  .video-card:hover { box-shadow: 0 4px 20px rgba(99,102,241,.08); }
-
-  /* FADE IN for result sections */
-  @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
-  .fade-in { animation: fadeIn .35s ease both; }
-
-  /* CHEVRON TRANSITION */
-  .chevron-anim { transition: transform .25s ease; }
-
-  /* CONFIG CARD */
-  .config-card-body { transition: max-height .3s ease, opacity .3s ease; }
-</style>
+        @keyframes premiumShine {
+            0% { transform: translateX(-150%) skewX(-20deg); opacity: 0; }
+            20% { opacity: 1; }
+            80% { opacity: 1; }
+            100% { transform: translateX(250%) skewX(-20deg); opacity: 0; }
+        }
+        .animate-shine-fast { animation: premiumShine 2.5s infinite cubic-bezier(0.4, 0, 0.2, 1); }
+        .glass-premium-fin { box-shadow: 0 10px 30px -10px rgba(0,0,0,0.15), inset 0 0 0 1px rgba(255,255,255,0.8); }
+    </style>
 </head>
-<body class="md:p-4">
+<body class="md:p-4 selection:bg-viralio-500 selection:text-white">
 
-<!-- BG GLOW -->
-<div class="fixed top-0 right-1/4 w-[500px] h-[500px] bg-indigo-500/5 rounded-full blur-[100px] pointer-events-none z-0"></div>
-<div class="fixed bottom-0 left-1/4 w-[400px] h-[400px] bg-pink-500/4 rounded-full blur-[120px] pointer-events-none z-0"></div>
+<div class="bg-white md:rounded-[1.5rem] min-h-[95vh] shadow-xl overflow-hidden relative pb-32 border border-slate-100 flex flex-col">
+    
+    <div class="absolute top-0 right-1/4 w-[500px] h-[500px] bg-indigo-500/5 rounded-full blur-[100px] pointer-events-none z-0 mix-blend-multiply"></div>
+    <div class="absolute top-[20%] left-[-10%] w-[400px] h-[400px] bg-pink-500/5 rounded-full blur-[100px] pointer-events-none z-0 mix-blend-multiply"></div>
 
-<div class="bg-white md:rounded-[1.5rem] min-h-screen shadow-xl overflow-hidden relative pb-24 border border-slate-100">
+    <!-- NAV -->
+    <div class="sticky top-0 z-50 flex w-full justify-center px-2 py-4 md:p-2 max-w-screen-2xl mx-auto">
+        <nav class="w-full rounded-2xl border border-slate-200 bg-white/80 backdrop-blur-xl md:mx-12 shadow-sm px-5 md:px-8 py-3 flex justify-between items-center">
+            <a class="flex items-center font-black text-2xl tracking-tight text-slate-900 group" href="https://viralio.ro">
+                <div class="w-9 h-9 rounded-xl bg-gradient-viralio flex items-center justify-center text-white mr-2.5 shadow-md group-hover:scale-105 transition-transform">
+                    <i class="fa-solid fa-bolt"></i>
+                </div>
+                Viralio <span class="text-sm font-medium text-slate-400 ml-2 border-l border-slate-200 pl-2 mt-1">Voice AI</span>
+            </a>
+            <div class="flex items-center justify-end space-x-3">
+                <button onclick="openLoginModal()" id="login-top-btn" class="px-5 py-2.5 bg-slate-900 text-white rounded-xl hover:bg-viralio-600 transition-all font-semibold shadow-md text-sm">Conectează-te</button>
+                <div id="user-profile" class="hidden items-center bg-slate-50 border border-slate-200 py-1 pl-1.5 pr-1.5 rounded-full">
+                    <img id="nav-avatar" src="" class="w-8 h-8 rounded-full border border-slate-200">
+                    <div class="flex flex-col leading-none ml-2 mr-2">
+                        <span id="nav-name" class="text-xs font-bold text-slate-900 mb-0.5"></span>
+                        <span class="text-[0.65rem] font-bold text-viralio-600"><span id="nav-chars">0</span> Caractere</span>
+                    </div>
+                    <button onclick="logout()" class="p-2 text-slate-400 hover:text-red-500 transition-colors rounded-full hover:bg-red-50"><i class="fa-solid fa-power-off"></i></button>
+                </div>
 
-  <!-- NAV -->
-  <div class="sticky top-0 z-50 flex w-full justify-center px-2 py-4 md:p-2">
-    <nav class="w-full max-w-xl rounded-2xl border border-slate-200 bg-white/80 backdrop-blur-xl shadow-sm px-4 py-2.5 flex justify-between items-center">
-      <a class="flex items-center font-black text-lg tracking-tight text-slate-900" href="https://viralio.ro">
-        <div class="w-7 h-7 rounded-xl bg-gradient-viralio flex items-center justify-center text-white mr-2 shadow-md"><i class="fa-solid fa-bolt text-xs"></i></div>
-        Viralio <span class="text-xs font-medium text-slate-400 ml-2 border-l border-slate-200 pl-2">Pipeline</span>
-      </a>
-      <div class="flex items-center gap-2">
-        <button onclick="openLoginModal()" id="login-top-btn" class="px-3 py-1.5 bg-slate-900 text-white rounded-xl hover:bg-viralio-600 transition-all font-bold shadow-md text-xs">Conectează-te</button>
-        <div id="user-profile" class="hidden items-center bg-slate-50 border border-slate-200 py-1 pl-1.5 pr-1.5 rounded-full">
-          <img id="nav-avatar" src="" class="w-7 h-7 rounded-full border border-slate-200">
-          <div class="flex flex-col leading-none ml-1.5 mr-1">
-            <span id="nav-name" class="text-xs font-bold text-slate-900 mb-0.5"></span>
-            <span class="text-[0.58rem] font-bold text-viralio-600 flex items-center gap-1">
-              <span id="nav-credits">0</span> cr · <span id="nav-chars">0</span> ch
-            </span>
-          </div>
-          <button onclick="logout()" class="p-1.5 text-slate-400 hover:text-red-500 transition-colors rounded-full hover:bg-red-50 ml-1"><i class="fa-solid fa-power-off text-xs"></i></button>
-        </div>
-      </div>
-    </nav>
-  </div>
-
-  <!-- LOGIN MODAL -->
-  <div id="login-modal">
-    <div class="modal-content">
-      <button class="absolute top-4 right-5 text-slate-400 hover:text-slate-900" onclick="closeLoginModal()"><i class="fa-solid fa-xmark text-xl"></i></button>
-      <div class="w-14 h-14 rounded-2xl bg-indigo-50 text-viralio-600 flex items-center justify-center text-3xl mx-auto mb-4"><i class="fas fa-fingerprint"></i></div>
-      <h2 class="text-2xl font-extrabold mb-2 text-slate-900">Intră în cont</h2>
-      <p class="text-slate-500 text-sm mb-6">Conectează-te cu Google pentru a folosi pipeline-ul.</p>
-      <div class="flex justify-center bg-slate-50 py-3 rounded-2xl border border-slate-100">
-        <div id="g_id_onload" data-client_id="743541351685-br4h5r61n3ai28bbhm9blt34944rju8p.apps.googleusercontent.com" data-context="signin" data-ux_mode="popup" data-callback="handleCredentialResponse" data-auto_prompt="false"></div>
-        <div class="g_id_signin" data-type="standard" data-shape="rectangular" data-theme="outline" data-text="signin_with" data-size="large"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- HERO -->
-  <div class="max-w-3xl mx-auto px-4 mt-10 text-center relative z-10">
-    <div class="w-16 h-16 rounded-[1.25rem] bg-indigo-50 border border-indigo-100 text-viralio-600 flex items-center justify-center text-3xl mx-auto mb-5 shadow-sm">
-      <i class="fas fa-wand-magic-sparkles"></i>
-    </div>
-    <h1 class="text-3xl md:text-4xl font-extrabold mb-3 tracking-tight text-slate-900">Auto Content Pipeline</h1>
-    <p class="text-slate-500 text-base font-medium mb-2">Descarcă video 1080p · Transcriere automată · Voice-over AI · Smart Cut</p>
-    <div class="flex flex-wrap items-center justify-center gap-2 mt-3 mb-8">
-      <span class="inline-flex items-center gap-1 text-[0.65rem] font-bold px-2.5 py-1 rounded-full bg-amber-50 border border-amber-100 text-amber-700"><i class="fas fa-coins text-amber-400"></i> 2 Credite / video</span>
-      <span class="inline-flex items-center gap-1 text-[0.65rem] font-bold px-2.5 py-1 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700"><i class="fas fa-film"></i> 1080p max</span>
-      <span class="inline-flex items-center gap-1 text-[0.65rem] font-bold px-2.5 py-1 rounded-full bg-pink-50 border border-pink-100 text-pink-700"><i class="fas fa-microphone-lines"></i> Voice AI inclus</span>
-      <span class="inline-flex items-center gap-1 text-[0.65rem] font-bold px-2.5 py-1 rounded-full bg-green-50 border border-green-100 text-green-700"><i class="fas fa-scissors"></i> Smart Cut inclus</span>
-    </div>
-  </div>
-
-  <!-- MAIN CARD -->
-  <div class="max-w-3xl mx-auto px-4 relative z-10 space-y-4">
-
-    <!-- RIBBON STATUS -->
-    <div id="ribbon" class="hidden ribbon text-sm font-semibold flex items-center gap-3">
-      <div class="w-5 h-5 flex items-center justify-center"><i id="ribbon-icon" class="fas fa-circle-notch spin"></i></div>
-      <div class="flex-1 min-w-0">
-        <div id="ribbon-title" class="font-bold leading-tight"></div>
-        <div id="ribbon-sub" class="text-xs opacity-80 mt-0.5"></div>
-      </div>
-      <div id="ribbon-progress" class="text-xs font-black opacity-70 shrink-0"></div>
-    </div>
-
-    <!-- ── CARD INPUT ── -->
-    <div class="bg-white border border-slate-200 rounded-[1.25rem] shadow-sm overflow-hidden">
-      <div class="flex items-center gap-3 px-5 py-4 border-b border-slate-100 bg-slate-50">
-        <div class="w-8 h-8 rounded-xl bg-gradient-viralio flex items-center justify-center text-white text-sm shrink-0 gap-0.5 flex-col" style="font-size:7px;line-height:1"><i class="fab fa-youtube"></i><i class="fab fa-tiktok"></i></div>
-        <div>
-          <div class="font-bold text-slate-800 text-sm">Link-uri video <span class="text-slate-400 font-medium text-xs">— YouTube · TikTok · Instagram · Facebook · până la 5 odată</span></div>
-          <div class="text-[0.65rem] text-slate-400 font-medium">Paste link-uri · procesare 1080p automată · batch</div>
-        </div>
-      </div>
-      <div class="p-5 space-y-4">
-
-        <!-- BATCH URL LIST -->
-        <div>
-          <div id="url-list" class="space-y-2">
-            <div class="url-row">
-              <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300 text-sm pointer-events-none" style="position:absolute;left:14px;top:50%;transform:translateY(-50%)"><i class="fas fa-link"></i></span>
-              <input type="text" placeholder="https://youtube.com/... sau tiktok.com/... sau instagram.com/reel/..." class="url-input w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-9 py-3 text-sm font-medium text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all placeholder-slate-300" style="padding-left:36px">
-              <button class="remove-btn hidden" onclick="removeUrl(this)"><i class="fas fa-xmark text-sm"></i></button>
             </div>
-          </div>
-          <button id="add-url-btn" onclick="addUrl()" class="flex items-center gap-1.5 text-xs font-bold text-indigo-400 hover:text-indigo-600 mt-2.5 transition-colors">
-            <i class="fas fa-plus-circle"></i> Adaugă link <span class="text-slate-300 font-normal">(max 5)</span>
-          </button>
+        </nav>
+    </div>
+
+    <!-- LOGIN MODAL -->
+    <div id="login-modal">
+        <div class="modal-content relative">
+            <button class="absolute top-4 right-5 text-slate-400 hover:text-slate-900" onclick="closeLoginModal()"><i class="fa-solid fa-xmark text-xl"></i></button>
+            <div class="w-16 h-16 rounded-2xl bg-indigo-50 border border-indigo-100 text-viralio-600 flex items-center justify-center text-3xl mx-auto mb-4 shadow-inner"><i class="fas fa-fingerprint"></i></div>
+            <h2 class="text-2xl font-extrabold mb-2 text-slate-900">Acces Viralio</h2>
+            <p class="text-slate-500 text-sm mb-6">Conectează-te pentru a debloca vocile AI premium.</p>
+            <div class="flex justify-center bg-slate-50 py-3 rounded-2xl border border-slate-100 hover:border-indigo-200 transition-colors">
+                <div id="g_id_onload" data-client_id="743541351685-br4h5r61n3ai28bbhm9blt34944rju8p.apps.googleusercontent.com" data-context="signin" data-ux_mode="popup" data-callback="handleCredentialResponse" data-auto_prompt="false"></div>
+                <div class="g_id_signin" data-type="standard" data-shape="rectangular" data-theme="outline" data-text="signin_with" data-size="large"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN -->
+    <main class="w-full max-w-6xl mx-auto pt-8 px-4 md:px-8 z-10 relative flex flex-col lg:flex-row gap-6 items-stretch flex-1">
+        
+        <!-- SCRIPT EDITOR -->
+        <div class="flex-1 flex flex-col bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden animate-slide-up">
+            <div class="px-6 md:px-8 pt-6 pb-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 shrink-0">
+                <h2 class="text-lg font-black text-slate-900 flex items-center gap-2">
+                    Studio Voce <span class="bg-indigo-100 text-indigo-600 text-[0.65rem] px-2 py-0.5 rounded-full uppercase tracking-widest font-bold">Pro</span>
+                </h2>
+                <div class="text-xs font-bold text-slate-400 bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm">
+                    <span id="char-count" class="text-viralio-600 font-black">0</span> / 5000
+                </div>
+            </div>
+            <div class="flex-1 relative p-6 md:p-8 overflow-hidden bg-white min-h-[300px]">
+                <textarea id="script-input" class="w-full h-full bg-transparent border-none outline-none resize-none text-slate-800 text-[1.1rem] md:text-xl font-medium leading-relaxed placeholder:text-slate-300 no-scrollbar" placeholder="Lipește aici povestea ta. Modelul Viralio 2.5 HD va citi respectând intonația naturală..."></textarea>
+            </div>
+            <div class="px-6 md:px-8 py-5 border-t border-slate-100 bg-slate-50 flex flex-col sm:flex-row items-center justify-between gap-4 shrink-0">
+                <div class="flex gap-2 w-full sm:w-auto">
+                    <button onclick="clearText()" class="flex-1 sm:flex-none px-4 py-2.5 bg-white border border-slate-200 text-slate-500 hover:text-red-500 hover:border-red-200 hover:bg-red-50 rounded-xl text-sm font-bold shadow-sm transition-all flex justify-center items-center gap-2"><i class="fa-solid fa-eraser"></i> Curăță</button>
+                    <button onclick="pasteText()" class="flex-1 sm:flex-none px-4 py-2.5 bg-white border border-slate-200 text-slate-700 hover:text-viralio-600 hover:border-viralio-200 hover:bg-indigo-50 rounded-xl text-sm font-bold shadow-sm transition-all flex justify-center items-center gap-2"><i class="fa-solid fa-paste"></i> Lipește</button>
+                </div>
+                <div class="flex items-center justify-between w-full sm:w-auto gap-5">
+                    <div class="text-right">
+                        <p class="text-[0.65rem] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Cost Generare</p>
+                        <p class="text-sm font-black text-amber-500 leading-none transition-colors" id="cost-container"><span id="char-cost">0</span> Litere</p>
+                    </div>
+                    <button id="generateBtn" onclick="processAudio()" class="px-8 py-3.5 bg-slate-900 text-white rounded-xl font-black text-sm shadow-[0_10px_20px_rgba(0,0,0,0.15)] hover:bg-viralio-600 hover:shadow-[0_10px_25px_rgba(79,70,229,0.3)] hover:-translate-y-1 transition-all flex items-center justify-center gap-2">
+                        <span class="btn-text flex items-center gap-2"><i class="fa-solid fa-wand-magic-sparkles text-amber-300"></i> GENEREAZĂ</span>
+                        <div class="loader"></div>
+                    </button>
+                </div>
+            </div>
         </div>
 
-        <!-- CONTROLS ROW -->
-        <div class="flex flex-col sm:flex-row gap-3">
-          <div class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 flex items-center gap-3">
-            <label class="text-slate-500 font-semibold text-xs whitespace-nowrap"><i class="fas fa-cog text-slate-300 mr-1"></i>Calitate</label>
-            <select id="dl-quality" class="flex-1 bg-transparent text-slate-800 font-bold text-sm outline-none cursor-pointer">
-              <option value="1080">1080p HD</option>
-              <option value="720" selected>720p</option>
-              <option value="480">480p</option>
-            </select>
-          </div>
-          <div class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 flex items-center gap-3">
-            <label class="text-slate-500 font-semibold text-xs whitespace-nowrap"><i class="fas fa-language text-slate-300 mr-1"></i>Limbă</label>
-            <select id="dl-limba" class="flex-1 bg-transparent text-slate-800 font-bold text-sm outline-none cursor-pointer">
-              <option value="română" selected>🇷🇴 Română</option>
-              <option value="engleză">🇬🇧 Engleză</option>
-              <option value="germană">🇩🇪 Germană</option>
-              <option value="franceză">🇫🇷 Franceză</option>
-              <option value="spaniolă">🇪🇸 Spaniolă</option>
-              <option value="italiană">🇮🇹 Italiană</option>
-              <option value="portugheză">🇵🇹 Portugheză</option>
-              <option value="olandeză">🇳🇱 Olandeză</option>
-              <option value="poloneză">🇵🇱 Poloneză</option>
-              <option value="rusă">🇷🇺 Rusă</option>
-              <option value="japoneză">🇯🇵 Japoneză</option>
-              <option value="chineză">🇨🇳 Chineză</option>
-              <option value="arabă">🇸🇦 Arabă</option>
-              <option value="turcă">🇹🇷 Turcă</option>
-              <option value="coreeană">🇰🇷 Coreeană</option>
-            </select>
-          </div>
-        </div>
+        <!-- SIDEBAR -->
+        <aside class="w-full lg:w-[420px] flex flex-col bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden animate-slide-up" style="animation-delay: 0.1s;">
+            <div class="flex border-b border-slate-100 bg-slate-50/50 px-4 pt-4 shrink-0">
+                <button onclick="switchTab('settings')" id="tab-btn-settings" class="flex-1 py-3 text-sm font-black border-b-2 border-viralio-600 text-viralio-600 transition-all">Parametrii AI</button>
+                <button onclick="switchTab('history')" id="tab-btn-history" class="flex-1 py-3 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-600 transition-all">Istoric Sesiune</button>
+            </div>
 
-        <!-- RUN BUTTON -->
-        <button id="run-btn" onclick="runPipeline()" class="w-full bg-gradient-viralio hover:opacity-90 text-white px-6 py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-md text-sm">
-          <i class="fas fa-wand-magic-sparkles"></i> PORNEȘTE PIPELINE · <span class="bg-white/20 rounded-md px-1.5 py-0.5 text-xs font-black">2 credite/video</span>
+            <div id="tab-settings" class="flex flex-col p-6 space-y-5 overflow-y-auto no-scrollbar flex-1">
+
+                <!-- PROVIDER TOGGLE -->
+                <div class="flex bg-slate-100 rounded-xl p-1 gap-1 shrink-0">
+                    <button id="prov-btn-el" onclick="switchProvider('elevenlabs')"
+                        class="flex-1 py-2 px-3 rounded-lg text-xs font-black transition-all bg-white text-slate-900 shadow-sm flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-bolt text-amber-400"></i>
+                        ElevenLabs
+                        <span id="dot-el" style="background:#f59e0b" class="w-2 h-2 rounded-full transition-colors duration-500 flex-shrink-0" title="Instabil"></span>
+                    </button>
+                    <button id="prov-btn-mm" onclick="switchProvider('minimax')"
+                        class="flex-1 py-2 px-3 rounded-lg text-xs font-black transition-all text-slate-400 flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-microchip text-purple-400"></i>
+                        Minimax
+                        <span id="dot-mm" style="background:#f59e0b" class="w-2 h-2 rounded-full transition-colors duration-500 flex-shrink-0" title="Instabil"></span>
+                    </button>
+                </div>
+
+                <!-- Model label -->
+                <div class="flex justify-between items-center bg-slate-50 border border-slate-100 p-3 rounded-xl shrink-0">
+                    <span class="text-sm font-bold text-slate-700">Model Motor AI</span>
+                    <span id="model-label" class="text-xs font-black text-transparent bg-clip-text bg-gradient-viralio"><i class="fa-solid fa-bolt text-amber-400 mr-1"></i> Viralio 2.5 HD</span>
+                </div>
+
+                <!-- VOICE PICKER TRIGGER -->
+                <div class="shrink-0">
+                    <label class="text-sm font-bold text-slate-700 mb-2 block">Actor Vocal</label>
+                    <button onclick="openVoiceModal()" id="voice-trigger-btn" class="w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 flex items-center gap-3 hover:border-indigo-400 hover:shadow-[0_0_0_4px_rgba(99,102,241,0.08)] transition-all focus:outline-none group">
+                        <div class="w-11 h-11 rounded-xl flex items-center justify-center text-sm font-black text-white shadow-md flex-shrink-0 transition-transform group-hover:scale-105" id="active-voice-avatar" style="background:#6366f1">RO</div>
+                        <div class="flex-1 text-left min-w-0">
+                            <span class="text-sm font-black text-slate-900 block leading-tight truncate" id="active-voice-name">Roger</span>
+                            <span class="text-[0.65rem] font-medium text-slate-400 uppercase tracking-wide truncate block mt-0.5" id="active-voice-badge">american · conversational · classy</span>
+                        </div>
+                        <div class="flex-shrink-0 w-7 h-7 rounded-lg bg-slate-100 group-hover:bg-indigo-100 flex items-center justify-center transition-colors">
+                            <i class="fa-solid fa-chevron-right text-slate-400 group-hover:text-indigo-500 text-xs transition-colors"></i>
+                        </div>
+                    </button>
+                </div>
+
+                <div class="w-full h-px bg-slate-100 shrink-0"></div>
+
+                <!-- ── ELEVENLABS PARAMS ── -->
+                <div id="params-elevenlabs" class="space-y-5 shrink-0">
+                    <div class="relative">
+                        <div class="flex justify-between items-end mb-1">
+                            <label class="text-sm font-bold text-slate-700">Stabilitate</label>
+                            <span id="stab-val" class="text-xs font-black text-viralio-600 bg-viralio-50 px-2 py-0.5 rounded border border-viralio-100">50%</span>
+                        </div>
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-[0.6rem] text-slate-400 font-bold uppercase tracking-wider">Emoțional</span>
+                            <span class="text-[0.6rem] text-slate-400 font-bold uppercase tracking-wider">Monoton</span>
+                        </div>
+                        <div class="relative w-full h-6 flex items-center mt-1">
+                            <div class="slider-progress" id="prog-stab" style="width: 50%;"></div>
+                            <input type="range" id="param-stab" min="0" max="100" value="50" class="viralio-slider" oninput="updateSlider('stab')">
+                        </div>
+                    </div>
+                    <div class="relative">
+                        <div class="flex justify-between items-end mb-1">
+                            <label class="text-sm font-bold text-slate-700">Fidelitate</label>
+                            <span id="sim-val" class="text-xs font-black text-viralio-600 bg-viralio-50 px-2 py-0.5 rounded border border-viralio-100">75%</span>
+                        </div>
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-[0.6rem] text-slate-400 font-bold uppercase tracking-wider">Slab</span>
+                            <span class="text-[0.6rem] text-slate-400 font-bold uppercase tracking-wider">Puternic</span>
+                        </div>
+                        <div class="relative w-full h-6 flex items-center mt-1">
+                            <div class="slider-progress" id="prog-sim" style="width: 75%;"></div>
+                            <input type="range" id="param-sim" min="0" max="100" value="75" class="viralio-slider" oninput="updateSlider('sim')">
+                        </div>
+                    </div>
+                    <div class="relative">
+                        <div class="flex justify-between items-end mb-1">
+                            <label class="text-sm font-bold text-slate-700">Viteză Vorbire</label>
+                            <span id="speed-val" class="text-xs font-black text-viralio-600 bg-viralio-50 px-2 py-0.5 rounded border border-viralio-100">1.0x</span>
+                        </div>
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-[0.6rem] text-slate-400 font-bold uppercase tracking-wider">Încet (0.7x)</span>
+                            <span class="text-[0.6rem] text-slate-400 font-bold uppercase tracking-wider">Rapid (1.2x)</span>
+                        </div>
+                        <div class="relative w-full h-6 flex items-center mt-1">
+                            <div class="slider-progress bg-amber-400" id="prog-speed" style="width: 60%;"></div>
+                            <input type="range" id="param-speed" min="0.7" max="1.2" step="0.01" value="1.0" class="viralio-slider" oninput="updateSlider('speed')">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── MINIMAX PARAMS ── -->
+                <div id="params-minimax" class="space-y-5 shrink-0 hidden">
+                    <!-- Language Boost -->
+                    <div>
+                        <label class="text-sm font-bold text-slate-700 mb-2 block">Language Boost</label>
+                        <select id="param-lang" class="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 focus:outline-none focus:border-purple-400 transition-all">
+                            <option value="Auto">Auto</option>
+                            <option value="Romanian" selected>Romanian</option>
+                            <option value="English">English</option>
+                            <option value="Spanish">Spanish</option>
+                            <option value="French">French</option>
+                            <option value="German">German</option>
+                            <option value="Italian">Italian</option>
+                            <option value="Portuguese">Portuguese</option>
+                            <option value="Japanese">Japanese</option>
+                            <option value="Korean">Korean</option>
+                            <option value="Chinese">Chinese</option>
+                            <option value="Arabic">Arabic</option>
+                            <option value="Russian">Russian</option>
+                            <option value="Turkish">Turkish</option>
+                            <option value="Polish">Polish</option>
+                            <option value="Ukrainian">Ukrainian</option>
+                            <option value="Vietnamese">Vietnamese</option>
+                            <option value="Hindi">Hindi</option>
+                        </select>
+                    </div>
+                    <!-- Speed MM -->
+                    <div class="relative">
+                        <div class="flex justify-between items-end mb-1">
+                            <label class="text-sm font-bold text-slate-700">Viteză Vorbire</label>
+                            <span id="mm-speed-val" class="text-xs font-black text-purple-600 bg-purple-50 px-2 py-0.5 rounded border border-purple-100">1.00x</span>
+                        </div>
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-[0.6rem] text-slate-400 font-bold uppercase tracking-wider">Lent (0.50x)</span>
+                            <span class="text-[0.6rem] text-slate-400 font-bold uppercase tracking-wider">Rapid (2.00x)</span>
+                        </div>
+                        <div class="relative w-full h-6 flex items-center mt-1">
+                            <div class="slider-progress" id="prog-mm-speed" style="background:#7c3aed;width:33.3%"></div>
+                            <input type="range" id="param-mm-speed" min="0.50" max="2.00" step="0.01" value="1.00" class="viralio-slider" oninput="updateSliderMM('mm-speed')">
+                        </div>
+                    </div>
+                    <!-- Pitch -->
+                    <div class="relative">
+                        <div class="flex justify-between items-end mb-1">
+                            <label class="text-sm font-bold text-slate-700">Înălțime Ton (Pitch)</label>
+                            <span id="mm-pitch-val" class="text-xs font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">0</span>
+                        </div>
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-[0.6rem] text-slate-400 font-bold uppercase tracking-wider">Jos (-12)</span>
+                            <span class="text-[0.6rem] text-slate-400 font-bold uppercase tracking-wider">Sus (+12)</span>
+                        </div>
+                        <div class="relative w-full h-6 flex items-center mt-1">
+                            <div class="slider-progress" id="prog-mm-pitch" style="background:#2563eb;width:50%"></div>
+                            <input type="range" id="param-mm-pitch" min="-12" max="12" step="1" value="0" class="viralio-slider" oninput="updateSliderMM('mm-pitch')">
+                        </div>
+                    </div>
+                    <!-- Volume -->
+                    <div class="relative">
+                        <div class="flex justify-between items-end mb-1">
+                            <label class="text-sm font-bold text-slate-700">Volum</label>
+                            <span id="mm-vol-val" class="text-xs font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">1.00</span>
+                        </div>
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-[0.6rem] text-slate-400 font-bold uppercase tracking-wider">Minim (0.01)</span>
+                            <span class="text-[0.6rem] text-slate-400 font-bold uppercase tracking-wider">Maxim (10.0)</span>
+                        </div>
+                        <div class="relative w-full h-6 flex items-center mt-1">
+                            <div class="slider-progress" id="prog-mm-vol" style="background:#059669;width:10%"></div>
+                            <input type="range" id="param-mm-vol" min="0.01" max="10" step="0.01" value="1.00" class="viralio-slider" oninput="updateSliderMM('mm-vol')">
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div id="tab-history" class="hidden flex-col h-full overflow-hidden bg-white">
+                <div class="flex justify-between items-center px-6 py-4 border-b border-slate-50 shrink-0">
+                    <span class="text-[0.65rem] font-bold text-slate-400 uppercase tracking-widest">Istoric Cloud</span>
+                    <button onclick="clearHistory()" class="text-[0.65rem] font-bold text-red-500 hover:text-red-600 uppercase transition-colors">Șterge tot</button>
+                </div>
+                <div id="history-box" class="flex-1 overflow-y-auto px-4 pb-4 space-y-2 no-scrollbar">
+                    <div class="text-center text-slate-400 text-sm font-medium py-10" id="empty-history">Nu ai generat nimic încă.</div>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <!-- PLAYER BAR -->
+    <div id="player-bar" class="absolute bottom-6 left-1/2 -translate-x-1/2 w-[95%] max-w-3xl bg-white/95 backdrop-blur-3xl border border-slate-200 rounded-[2rem] p-3 md:p-4 flex items-center gap-3 md:gap-5 shadow-[0_20px_50px_rgba(0,0,0,0.15)] translate-y-40 transition-transform duration-500 z-50">
+        <button id="player-play-btn" class="w-12 h-12 md:w-14 md:h-14 shrink-0 rounded-full bg-slate-900 text-white flex items-center justify-center text-lg shadow-lg hover:scale-105 hover:bg-viralio-600 transition-all">
+            <i class="fa-solid fa-play ml-1"></i>
         </button>
-      </div>
+        <div class="flex-1 overflow-hidden px-1 md:px-2 flex flex-col justify-center">
+            <div class="flex items-end justify-between mb-1.5 md:mb-2">
+                <span class="text-xs md:text-sm font-black text-slate-900 truncate pr-4" id="nowPlayingText">Audio Generat</span>
+                <div class="flex items-end gap-1 h-4 md:h-5 shrink-0" id="eq-container">
+                    <div class="eq-bar" style="animation-delay: 0.1s"></div>
+                    <div class="eq-bar" style="animation-delay: 0.3s"></div>
+                    <div class="eq-bar" style="animation-delay: 0.2s"></div>
+                    <div class="eq-bar" style="animation-delay: 0.4s"></div>
+                </div>
+            </div>
+            <div class="flex items-center gap-3 w-full">
+                <span id="time-current" class="text-[0.65rem] font-bold text-slate-400 w-8 text-right font-mono">0:00</span>
+                <div class="flex-1 h-2 bg-slate-100 rounded-full cursor-pointer relative group" id="track-bg" onclick="seekTrack(event)">
+                    <div id="track-fill" class="absolute top-0 left-0 h-full bg-viralio-500 rounded-full w-0 pointer-events-none transition-all duration-75 group-hover:bg-viralio-600"></div>
+                </div>
+                <span id="time-total" class="text-[0.65rem] font-bold text-slate-400 w-8 font-mono">0:00</span>
+            </div>
+        </div>
+        <div class="flex items-center gap-2 shrink-0 border-l border-slate-100 pl-3 md:pl-4">
+            <a id="download-btn" href="#" download="viralio_voice.mp3" class="w-10 h-10 md:w-12 md:h-12 rounded-[1rem] bg-indigo-50 border border-indigo-100 flex items-center justify-center text-viralio-600 hover:bg-viralio-600 hover:text-white transition-all shadow-sm" title="Descarcă MP3">
+                <i class="fa-solid fa-download"></i>
+            </a>
+            <button onclick="closePlayer()" class="w-10 h-10 md:w-12 md:h-12 rounded-[1rem] bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-all hidden sm:flex" title="Închide">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
     </div>
+</div>
 
-    <!-- ── VOICE CONFIG CARD ── -->
-    <div class="bg-white border border-slate-200 rounded-[1.25rem] shadow-sm overflow-hidden">
-      <div class="flex items-center gap-3 px-5 py-3.5 border-b border-slate-100 cursor-pointer select-none" onclick="toggleVoiceConfig()">
-        <div class="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-500 text-sm shrink-0"><i class="fas fa-microphone-lines"></i></div>
-        <div class="flex-1 min-w-0">
-          <div class="font-bold text-slate-800 text-sm">Voice Studio AI</div>
-          <div id="voice-config-sel" class="text-[0.65rem] text-slate-400 font-medium mt-0.5">Roger (ElevenLabs) · click pentru configurare</div>
+<!-- SOCIAL FLOAT -->
+<div class="fixed bottom-5 right-5 md:right-6 z-[100000] flex items-center bg-white/70 backdrop-blur-2xl glass-premium-fin rounded-full p-1.5 transition-all duration-500 hover:-translate-y-1 hover:shadow-[0_15px_40px_-10px_rgba(0,0,0,0.2)] hover:bg-white/90">
+    <a href="https://discord.gg/h8Ah6VKDzm" target="_blank" class="group flex items-center gap-2 hover:bg-slate-100 rounded-full px-3 py-1.5 transition-all duration-300">
+        <div class="flex items-center justify-center w-10 h-10 rounded-full bg-slate-900 text-white shadow-sm group-hover:bg-[#5865F2] group-hover:scale-105 transition-all duration-300">
+            <i class="fa-brands fa-discord text-sm"></i>
         </div>
-        <i id="voice-config-chevron" class="fas fa-chevron-down text-slate-400 text-xs chevron-anim"></i>
-      </div>
-      <div id="voice-config-body" class="bg-slate-50 border-b border-slate-100">
-
-        <!-- Provider tabs -->
-        <div class="flex border-b border-slate-200 bg-white">
-          <button id="tab-el" onclick="switchVoiceProvider('el')"
-            class="flex-1 py-2.5 text-xs font-bold text-indigo-600 border-b-2 border-indigo-500 transition-all flex items-center justify-center gap-1.5">
-            <span class="w-2 h-2 rounded-full bg-indigo-500 inline-block"></span> ElevenLabs
-          </button>
-          <button id="tab-mm" onclick="switchVoiceProvider('mm')"
-            class="flex-1 py-2.5 text-xs font-bold text-slate-400 border-b-2 border-transparent hover:text-purple-600 transition-all flex items-center justify-center gap-1.5">
-            <span class="w-2 h-2 rounded-full bg-purple-400 inline-block"></span> Minimax
-          </button>
+        <div class="flex-col hidden sm:flex text-left">
+            <span class="text-[0.55rem] font-bold text-slate-400 uppercase tracking-widest leading-none mb-0.5">Ai Întrebări?</span>
+            <span class="text-xs font-black text-slate-800 leading-none group-hover:text-black transition-colors duration-300">Suport Discord</span>
         </div>
-
-        <!-- Search + filter -->
-        <div class="px-4 pt-3 pb-2 flex gap-2">
-          <div class="relative flex-1">
-            <i class="fas fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-300 text-xs pointer-events-none"></i>
-            <input id="voice-search" type="text" placeholder="Caută voce..." autocomplete="off"
-              class="w-full pl-7 pr-3 py-1.5 text-xs font-medium bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-400 transition-all placeholder-slate-300"
-              oninput="filterVoiceGrid()">
-          </div>
-          <select id="voice-filter-gender" onchange="filterVoiceGrid()"
-            class="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-600 outline-none cursor-pointer">
-            <option value="all">Toate</option>
-            <option value="male">Masc.</option>
-            <option value="female">Fem.</option>
-          </select>
-        </div>
-
-        <!-- Voice grid scrollabil -->
-        <div class="px-4 pb-3">
-          <div id="voice-grid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-1.5 max-h-48 overflow-y-auto pr-0.5" style="scrollbar-width:thin;scrollbar-color:#cbd5e1 transparent"></div>
-        </div>
-
-        <!-- Sliders — schimbă dinamic per provider -->
-        <div class="px-4 pb-4 pt-1 border-t border-slate-200">
-
-          <!-- EL sliders -->
-          <div id="sliders-el" class="grid grid-cols-3 gap-3">
-            <div>
-              <div class="flex justify-between mb-1">
-                <label class="text-[0.6rem] font-bold text-slate-400 uppercase tracking-wide">Stabilitate</label>
-                <span id="val-stability" class="text-[0.6rem] font-bold text-indigo-600">0.50</span>
-              </div>
-              <input type="range" id="sl-stability" min="0" max="1" step="0.05" value="0.5"
-                oninput="document.getElementById('val-stability').textContent=parseFloat(this.value).toFixed(2)">
-            </div>
-            <div>
-              <div class="flex justify-between mb-1">
-                <label class="text-[0.6rem] font-bold text-slate-400 uppercase tracking-wide">Similaritate</label>
-                <span id="val-similarity" class="text-[0.6rem] font-bold text-indigo-600">0.75</span>
-              </div>
-              <input type="range" id="sl-similarity" min="0" max="1" step="0.05" value="0.75"
-                oninput="document.getElementById('val-similarity').textContent=parseFloat(this.value).toFixed(2)">
-            </div>
-            <div>
-              <div class="flex justify-between mb-1">
-                <label class="text-[0.6rem] font-bold text-slate-400 uppercase tracking-wide">Viteză</label>
-                <span id="val-speed" class="text-[0.6rem] font-bold text-indigo-600">1.00×</span>
-              </div>
-              <input type="range" id="sl-speed" min="0.70" max="1.20" step="0.01" value="1.00"
-                oninput="document.getElementById('val-speed').textContent=parseFloat(this.value).toFixed(2)+'×'">
-              <div class="flex justify-between mt-0.5">
-                <span class="text-[0.5rem] text-slate-300 font-bold">0.70×</span>
-                <span class="text-[0.5rem] text-slate-300 font-bold">1.20×</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- MM sliders -->
-          <div id="sliders-mm" class="hidden grid grid-cols-3 gap-3">
-            <div>
-              <div class="flex justify-between mb-1">
-                <label class="text-[0.6rem] font-bold text-slate-400 uppercase tracking-wide">Viteză</label>
-                <span id="val-speed-mm" class="text-[0.6rem] font-bold text-purple-600">1.00×</span>
-              </div>
-              <input type="range" id="sl-speed-mm" min="0.50" max="2.00" step="0.01" value="1.00"
-                oninput="document.getElementById('val-speed-mm').textContent=parseFloat(this.value).toFixed(2)+'×'">
-              <div class="flex justify-between mt-0.5">
-                <span class="text-[0.5rem] text-slate-300 font-bold">0.50×</span>
-                <span class="text-[0.5rem] text-slate-300 font-bold">2.00×</span>
-              </div>
-            </div>
-            <div>
-              <div class="flex justify-between mb-1">
-                <label class="text-[0.6rem] font-bold text-slate-400 uppercase tracking-wide">Pitch</label>
-                <span id="val-pitch-mm" class="text-[0.6rem] font-bold text-purple-600">0</span>
-              </div>
-              <input type="range" id="sl-pitch-mm" min="-12" max="12" step="1" value="0"
-                oninput="document.getElementById('val-pitch-mm').textContent=this.value">
-              <div class="flex justify-between mt-0.5">
-                <span class="text-[0.5rem] text-slate-300 font-bold">-12</span>
-                <span class="text-[0.5rem] text-slate-300 font-bold">+12</span>
-              </div>
-            </div>
-            <div>
-              <div class="flex justify-between mb-1">
-                <label class="text-[0.6rem] font-bold text-slate-400 uppercase tracking-wide">Volum</label>
-                <span id="val-vol-mm" class="text-[0.6rem] font-bold text-purple-600">1.0</span>
-              </div>
-              <input type="range" id="sl-vol-mm" min="0.5" max="2.0" step="0.1" value="1.0"
-                oninput="document.getElementById('val-vol-mm').textContent=parseFloat(this.value).toFixed(1)">
-              <div class="flex justify-between mt-0.5">
-                <span class="text-[0.5rem] text-slate-300 font-bold">0.5</span>
-                <span class="text-[0.5rem] text-slate-300 font-bold">2.0</span>
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </div>
-    </div>
-
-    <!-- ── SMART CUT CONFIG CARD ── -->
-    <div class="bg-white border border-slate-200 rounded-[1.25rem] shadow-sm overflow-hidden">
-      <div class="flex items-center gap-3 px-5 py-3.5 border-b border-slate-100 cursor-pointer select-none" onclick="toggleCutConfig()">
-        <div class="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center text-green-500 text-sm shrink-0"><i class="fas fa-scissors"></i></div>
-        <div class="flex-1 min-w-0">
-          <div class="font-bold text-slate-800 text-sm">Smart Cut <span class="text-slate-400 font-medium">— elimină pauzele</span></div>
-          <div class="text-[0.65rem] text-slate-400 font-medium mt-0.5">Configurare prag de tăiere · click pentru detalii</div>
-        </div>
-        <i id="cut-config-chevron" class="fas fa-chevron-down text-slate-400 text-xs chevron-anim"></i>
-      </div>
-      <div id="cut-config-body" class="px-5 py-4 bg-slate-50 border-b border-slate-100 grid grid-cols-2 gap-3">
-        <div>
-          <div class="flex justify-between mb-1"><label class="text-[0.6rem] font-bold text-slate-400 uppercase tracking-wide">Min. pauză</label><span id="val-silence" class="text-[0.65rem] font-bold text-indigo-600">0.35s</span></div>
-          <input type="range" id="sl-silence" min="0.1" max="2" step="0.05" value="0.35" oninput="document.getElementById('val-silence').textContent=parseFloat(this.value).toFixed(2)+'s'">
-        </div>
-        <div>
-          <div class="flex justify-between mb-1"><label class="text-[0.6rem] font-bold text-slate-400 uppercase tracking-wide">Threshold</label><span id="val-thresh" class="text-[0.65rem] font-bold text-indigo-600">-45dB</span></div>
-          <input type="range" id="sl-thresh" min="-60" max="-20" step="1" value="-45" oninput="document.getElementById('val-thresh').textContent=this.value+'dB'">
-        </div>
-      </div>
-    </div>
-
-    <!-- ── BATCH CONTAINER — carduri per URL apar aici ── -->
-    <div id="batch-container" class="hidden space-y-3"></div>
-
-  </div><!-- end max-w-3xl -->
-
-  <!-- DISCORD/TELEGRAM BAR -->
-  <div class="fixed bottom-5 right-5 md:right-6 z-[100000] flex items-center bg-white/70 backdrop-blur-2xl rounded-full p-1.5 border border-slate-200 shadow-lg transition-all hover:-translate-y-1 hover:shadow-xl hover:bg-white/90">
-    <a href="https://discord.gg/h8Ah6VKDzm" target="_blank" class="group flex items-center gap-2 hover:bg-slate-100 rounded-full px-3 py-1.5 transition-all">
-      <div class="flex items-center justify-center w-9 h-9 rounded-full bg-slate-900 text-white shadow-sm group-hover:bg-[#5865F2] group-hover:scale-105 transition-all">
-        <i class="fa-brands fa-discord text-sm"></i>
-      </div>
-      <div class="flex-col hidden sm:flex text-left">
-        <span class="text-[0.5rem] font-bold text-slate-400 uppercase tracking-widest leading-none mb-0.5">Ai Întrebări?</span>
-        <span class="text-xs font-black text-slate-800 leading-none group-hover:text-black">Suport Discord</span>
-      </div>
     </a>
     <div class="w-px h-6 bg-gradient-to-b from-transparent via-slate-300 to-transparent mx-1"></div>
-    <a href="https://t.me/SmartCreator_official" target="_blank" class="group flex items-center gap-2 rounded-full px-3 py-1.5 transition-all">
-      <div class="relative flex items-center justify-center w-9 h-9 group-hover:scale-110 transition-transform">
-        <div class="absolute inset-0 rounded-full bg-gradient-to-br from-[#0088cc] to-[#00aaff] overflow-hidden shadow-[0_0_15px_rgba(0,136,204,.4)]">
-          <div class="absolute inset-0 w-[250%] h-full bg-gradient-to-r from-transparent via-white/60 to-transparent animate-shine-fast z-10"></div>
+    <a href="https://t.me/SmartCreator_official" target="_blank" class="group flex items-center gap-2 rounded-full px-3 py-1.5 transition-all duration-300">
+        <div class="relative flex items-center justify-center w-10 h-10 group-hover:scale-110 transition-transform duration-300">
+            <div class="absolute inset-0 rounded-full bg-gradient-to-br from-[#0088cc] to-[#00aaff] overflow-hidden shadow-[0_0_15px_rgba(0,136,204,0.4)]">
+                <div class="absolute inset-0 w-[250%] h-full bg-gradient-to-r from-transparent via-white/60 to-transparent animate-shine-fast z-10"></div>
+            </div>
+            <i class="fa-brands fa-telegram text-white text-sm pr-0.5 relative z-20"></i>
+            <span class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white animate-pulse z-30 shadow-sm"></span>
         </div>
-        <i class="fa-brands fa-telegram text-white text-sm pr-0.5 relative z-20"></i>
-        <span class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white animate-pulse z-30"></span>
-      </div>
-      <div class="flex-col hidden sm:flex text-left">
-        <span class="text-[0.5rem] font-bold text-red-500 uppercase tracking-widest leading-none mb-0.5">Giveaways</span>
-        <span class="text-xs font-black text-slate-800 leading-none group-hover:text-[#0088cc]">Telegram VIP</span>
-      </div>
+        <div class="flex-col hidden sm:flex text-left">
+            <span class="text-[0.55rem] font-bold text-red-500 uppercase tracking-widest leading-none mb-0.5 drop-shadow-sm">Giveaways</span>
+            <span class="text-xs font-black text-slate-800 leading-none group-hover:text-[#0088cc] transition-colors duration-300">Telegram VIP</span>
+        </div>
     </a>
-  </div>
+</div>
 
-</div><!-- end main white card -->
+<audio id="core-audio" class="hidden"></audio>
+<audio id="preview-audio" class="hidden"></audio>
+
+<!-- ══════════════════════════════════════════════════════════
+     VOICE MODAL — Ultra Dark Premium
+══════════════════════════════════════════════════════════ -->
+<div id="vm-overlay" class="vm-overlay">
+  <div class="vm-sheet" role="dialog" aria-modal="true">
+
+    <!-- Header -->
+    <div class="vm-header">
+      <div class="vm-header-left">
+        <div class="vm-header-icon" style="padding:0;overflow:hidden;background:none;box-shadow:none;border-radius:0.9rem;">
+          <img src="/assets/apple-touch-icon.png" alt="Viralio" style="width:100%;height:100%;object-fit:cover;border-radius:0.9rem;display:block;">
+        </div>
+        <div>
+          <div class="vm-header-title">Alege Vocea</div>
+          <div class="vm-header-sub"><span id="vm-result-count">—</span> voci disponibile · <span id="vm-provider-label">Viralio AI</span></div>
+        </div>
+      </div>
+      <button class="vm-close-btn" onclick="closeVoiceModal()" title="Închide"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
+    <!-- Search + Filters -->
+    <div class="vm-controls">
+      <div class="vm-search-wrap">
+        <i class="fa-solid fa-magnifying-glass vm-search-icon"></i>
+        <input id="vm-search-input" class="vm-search" placeholder="Caută după nume, stil, accent..." autocomplete="off" spellcheck="false">
+        <span class="vm-search-kbd">⌘K</span>
+      </div>
+      <!-- ElevenLabs filters -->
+      <div id="vm-filters-el" class="vm-filters" role="group">
+        <button class="vmf vmf-on" data-f="all"     onclick="setVmFilter('all')">⚡ Toate</button>
+        <button class="vmf" data-f="male"    onclick="setVmFilter('male')">Masculine</button>
+        <button class="vmf" data-f="female"  onclick="setVmFilter('female')">Feminine</button>
+        <button class="vmf" data-f="young"   onclick="setVmFilter('young')">🔥 Tineri</button>
+        <button class="vmf" data-f="mature"  onclick="setVmFilter('mature')">🎙 Maturi</button>
+        <button class="vmf" data-f="shared"  onclick="setVmFilter('shared')">🌐 Comunitate</button>
+        <button class="vmf" data-f="special" onclick="setVmFilter('special')">✨ Speciale</button>
+      </div>
+      <!-- Minimax filters -->
+      <div id="vm-filters-mm" class="vm-filters hidden" role="group">
+        <button class="vmf vmf-on" data-f="all"         onclick="setVmFilter('all')">⚡ Toate</button>
+        <button class="vmf" data-f="male"               onclick="setVmFilter('male')">Masculine</button>
+        <button class="vmf" data-f="female"             onclick="setVmFilter('female')">Feminine</button>
+        <button class="vmf" data-f="english"            onclick="setVmFilter('english')">Engleză</button>
+        <button class="vmf" data-f="romanian"           onclick="setVmFilter('romanian')">Română</button>
+        <button class="vmf" data-f="spanish"            onclick="setVmFilter('spanish')">Spaniolă</button>
+        <button class="vmf" data-f="portuguese"         onclick="setVmFilter('portuguese')">Portugheză</button>
+        <button class="vmf" data-f="japanese"           onclick="setVmFilter('japanese')">Japoneză</button>
+        <button class="vmf" data-f="korean"             onclick="setVmFilter('korean')">Coreeană</button>
+      </div>
+    </div>
+
+    <!-- Stats bar -->
+    <div class="vm-stats-bar" style="justify-content:flex-end;">
+      <div class="vm-sort-btns">
+        <button class="vm-sort-btn active" id="sort-az" onclick="setSortMode('az')">A→Z</button>
+        <button class="vm-sort-btn" id="sort-gender" onclick="setSortMode('gender')">Gen</button>
+        <button class="vm-sort-btn" id="sort-use" onclick="setSortMode('use')">Utilizare</button>
+      </div>
+    </div>
+
+    <!-- Grid -->
+    <div class="vm-body">
+      <div id="vm-grid" class="vm-grid"></div>
+      <div id="vm-empty" class="vm-empty">
+        <div class="vm-empty-icon"><i class="fa-solid fa-face-meh"></i></div>
+        <div class="vm-empty-title">Nicio voce găsită</div>
+        <div class="vm-empty-sub">Încearcă alt termen de căutare</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Voice data (external files) -->
+<script src="/minimax-voices.js"></script>
+<script src="/voices.js"></script>
 
 <script>
 // ══════════════════════════════════════════════════════════════
-// CONFIG
+//  1. AUTH
 // ══════════════════════════════════════════════════════════════
-const API_BASE = window.location.origin;
-const GOOGLE_CLIENT_ID = '743541351685-br4h5r61n3ai28bbhm9blt34944rju8p.apps.googleusercontent.com';
+function setToken(t){ document.cookie=`viralio_token=${t}; domain=.viralio.ro; path=/; max-age=604800; Secure; SameSite=Lax`; }
+function getToken(){ const m=document.cookie.match(/(?:^|; )viralio_token=([^;]*)/); return m?m[1]:null; }
+function removeToken(){ document.cookie='viralio_token=; domain=.viralio.ro; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'; }
+function openLoginModal(){ document.getElementById('login-modal').classList.add('show'); }
+function closeLoginModal(){ document.getElementById('login-modal').classList.remove('show'); }
 
-// ── AUTH ─────────────────────────────────────────────────────
-let authToken = null;
-
-function setToken(t) { document.cookie = `viralio_token=${t}; domain=.viralio.ro; path=/; max-age=2592000; Secure; SameSite=Lax`; }
-function getToken() { const m = document.cookie.match(/(?:^|; )viralio_token=([^;]*)/); return m ? m[1] : null; }
-function removeToken() { document.cookie = 'viralio_token=; domain=.viralio.ro; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'; }
-
-function openLoginModal() { document.getElementById('login-modal').classList.add('show'); }
-function closeLoginModal() { document.getElementById('login-modal').classList.remove('show'); }
-function requireAuth() { if (!authToken) { openLoginModal(); return false; } return true; }
-
-async function handleCredentialResponse(response) {
-  try {
-    const res = await fetch(`${API_BASE}/api/auth/google`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ credential: response.credential }) });
-    const data = await res.json();
-    if (data.token) { setToken(data.token); authToken = data.token; closeLoginModal(); updateUI(data.user); }
-    else if (data.error === 'BETA_FULL') alert(data.message);
-  } catch(e) { alert('Eroare conexiune login.'); }
-}
-
-function updateUI(user) {
-  authToken = getToken();
-  document.getElementById('login-top-btn').classList.add('hidden');
-  const up = document.getElementById('user-profile');
-  up.classList.remove('hidden'); up.classList.add('flex');
-  document.getElementById('nav-name').textContent = (user.name||'').split(' ')[0];
-  document.getElementById('nav-avatar').src = user.picture||'';
-  document.getElementById('nav-credits').textContent = Math.floor(user.credits||0);
-  document.getElementById('nav-chars').textContent = (user.voice_characters||0).toLocaleString();
-}
-
-function logout() { removeToken(); authToken = null; location.reload(); }
-
-window.addEventListener('load', async () => {
-  const token = getToken();
-  if (token) {
+window.handleCredentialResponse = async function(response){
     try {
-      const res = await fetch(`${API_BASE}/api/auth/me`, { headers:{'Authorization':`Bearer ${token}`} });
-      if (res.ok) { const data = await res.json(); authToken = token; updateUI(data.user); }
-      else if (res.status === 401) removeToken();
-    } catch(e) {}
-  }
-  buildVoiceGrid();
-  initUrlRows();
-});
+        const res = await fetch('/api/auth/google',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({credential:response.credential}) });
+        const data = await res.json();
+        if(data.token){ setToken(data.token); closeLoginModal(); updateUI(data.user); }
+        else alert("Eroare la conectare. Serverul nu a returnat token.");
+    } catch(e){ alert('Eroare conexiune server.'); }
+};
 
-// ── BATCH URL MANAGEMENT ─────────────────────────────────────
-function initUrlRows() {
-  styleUrlRow(document.querySelector('.url-row'));
+let currentVoiceCharacters = 0;
+function updateUI(user){
+    const lb = document.getElementById('login-top-btn');
+    if(lb) lb.style.display='none';
+    const up = document.getElementById('user-profile');
+    if(up){ up.classList.remove('hidden'); up.style.display='flex'; }
+    document.getElementById('nav-name').innerText = user.name?user.name.split(' ')[0]:'User';
+    document.getElementById('nav-avatar').src = user.picture||'';
+    currentVoiceCharacters = user.voice_characters||0;
+    const nc = document.getElementById('nav-chars');
+    if(nc) nc.innerText = currentVoiceCharacters.toLocaleString('ro-RO');
+    const si = document.getElementById('script-input');
+    if(si && si.value.length>0) checkFunds();
 }
+function logout(){ removeToken(); location.reload(); }
 
-function createUrlRow() {
-  const div = document.createElement('div');
-  div.className = 'url-row';
-  div.style.position = 'relative';
-  div.innerHTML = `
-    <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);pointer-events:none;color:#cbd5e1;font-size:.875rem"><i class="fas fa-link"></i></span>
-    <input type="text" placeholder="https://youtube.com/... sau tiktok.com/... sau instagram.com/reel/..." class="url-input w-full bg-slate-50 border border-slate-200 rounded-xl py-3 text-sm font-medium text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all placeholder-slate-300" style="padding-left:36px;padding-right:36px">
-    <button class="remove-btn" onclick="removeUrl(this)" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#cbd5e1;padding:4px;transition:color .2s" onmouseenter="this.style.color='#f87171'" onmouseleave="this.style.color='#cbd5e1'"><i class="fas fa-xmark text-sm"></i></button>
-  `;
-  return div;
-}
+window.onload = async()=>{
+    updateSlider('stab'); updateSlider('sim'); updateSlider('speed');
+    updateSliderMM('mm-speed'); updateSliderMM('mm-pitch'); updateSliderMM('mm-vol');
+    updateStatusDots();
+    renderHistory();
+    // update voice count badge
+    document.getElementById('vm-result-count').innerText = ALL_VOICES.length;
+    const token=getToken();
+    if(token){
+        try{
+            const res=await fetch('/api/auth/me',{headers:{'Authorization':`Bearer ${token}`}});
+            if(res.ok){ const data=await res.json(); updateUI(data.user); }
+            else removeToken();
+        }catch(e){ console.error(e); }
+    }
+};
 
-function styleUrlRow(row) {
-  if (!row) return;
-  row.style.position = 'relative';
-}
-
-function addUrl() {
-  const list = document.getElementById('url-list');
-  if (list.children.length >= 5) return;
-  const row = createUrlRow();
-  list.appendChild(row);
-  row.querySelector('.url-input').focus();
-  updateUrlUI();
-}
-
-function removeUrl(btn) {
-  const row = btn.closest('.url-row');
-  row.remove();
-  updateUrlUI();
-}
-
-function updateUrlUI() {
-  const list = document.getElementById('url-list');
-  const rows = list.querySelectorAll('.url-row');
-  const addBtn = document.getElementById('add-url-btn');
-  rows.forEach(row => {
-    const rb = row.querySelector('.remove-btn');
-    if (rb) rb.style.display = rows.length > 1 ? 'block' : 'none';
-  });
-  addBtn.style.display = rows.length >= 5 ? 'none' : 'flex';
-}
-
-// ── CONFIG CARD TOGGLES ───────────────────────────────────────
-function toggleVoiceConfig() {
-  const body = document.getElementById('voice-config-body');
-  const chevron = document.getElementById('voice-config-chevron');
-  const hidden = body.classList.toggle('hidden');
-  chevron.style.transform = hidden ? 'rotate(-90deg)' : '';
-}
-
-function toggleCutConfig() {
-  const body = document.getElementById('cut-config-body');
-  const chevron = document.getElementById('cut-config-chevron');
-  const hidden = body.classList.toggle('hidden');
-  chevron.style.transform = hidden ? 'rotate(-90deg)' : '';
-}
-
-// ── UI HELPERS ────────────────────────────────────────────────
-function setRibbon(title, sub, done, total) {
-  const ribbon = document.getElementById('ribbon');
-  ribbon.classList.remove('hidden');
-  document.getElementById('ribbon-title').textContent = title;
-  document.getElementById('ribbon-sub').textContent = sub;
-  document.getElementById('ribbon-progress').textContent = `${done}/${total}`;
-}
-
-function hideRibbon() { document.getElementById('ribbon').classList.add('hidden'); }
-
-function toggleManualText() {
-  const show = document.getElementById('manual-text-toggle').checked;
-  document.getElementById('manual-text-box').classList.toggle('hidden', !show);
-}
-
-// ── VOICE PROVIDER STATE ──────────────────────────────────────
-let voiceProvider = 'el'; // 'el' = ElevenLabs, 'mm' = Minimax
-
-// selectedVoice conține întotdeauna { id, name, provider, gender }
-let selectedVoice = { id: 'CwhRBWXzGAHq8TQ4Fs17', name: 'Roger', provider: 'el', gender: 'male' };
-
-// ── SWITCH PROVIDER TAB ───────────────────────────────────────
-function switchVoiceProvider(p) {
-  voiceProvider = p;
-  // Tab styling
-  const tabEl = document.getElementById('tab-el');
-  const tabMm = document.getElementById('tab-mm');
-  if (p === 'el') {
-    tabEl.className = 'flex-1 py-2.5 text-xs font-bold text-indigo-600 border-b-2 border-indigo-500 transition-all flex items-center justify-center gap-1.5';
-    tabMm.className = 'flex-1 py-2.5 text-xs font-bold text-slate-400 border-b-2 border-transparent hover:text-purple-600 transition-all flex items-center justify-center gap-1.5';
-    document.getElementById('sliders-el').classList.remove('hidden');
-    document.getElementById('sliders-mm').classList.add('hidden');
-  } else {
-    tabMm.className = 'flex-1 py-2.5 text-xs font-bold text-purple-600 border-b-2 border-purple-500 transition-all flex items-center justify-center gap-1.5';
-    tabEl.className = 'flex-1 py-2.5 text-xs font-bold text-slate-400 border-b-2 border-transparent hover:text-indigo-600 transition-all flex items-center justify-center gap-1.5';
-    document.getElementById('sliders-mm').classList.remove('hidden');
-    document.getElementById('sliders-el').classList.add('hidden');
-  }
-  // Reset selectie când schimbi provider-ul
-  if (p === 'el' && selectedVoice.provider !== 'el') {
-    selectedVoice = { id: 'CwhRBWXzGAHq8TQ4Fs17', name: 'Roger', provider: 'el', gender: 'male' };
-  } else if (p === 'mm' && selectedVoice.provider !== 'mm') {
-    selectedVoice = { id: '209533299589206', name: 'Wise Scholar', provider: 'mm', gender: 'male' };
-  }
-  document.getElementById('voice-search').value = '';
-  document.getElementById('voice-filter-gender').value = 'all';
-  filterVoiceGrid();
-}
-
-// ── FILTER + BUILD GRID ───────────────────────────────────────
-function filterVoiceGrid() {
-  const q = document.getElementById('voice-search').value.toLowerCase();
-  const gf = document.getElementById('voice-filter-gender').value;
-
-  // Sursa de date — vine din voices.js / minimax-voices.js incluse în public/
-  const sourceList = voiceProvider === 'el'
-    ? (typeof ALL_VOICES !== 'undefined' ? ALL_VOICES : [])
-    : (typeof ALL_MINIMAX_VOICES !== 'undefined' ? ALL_MINIMAX_VOICES : []);
-
-  let list = sourceList.filter(v => {
-    const matchQ = !q || v.name.toLowerCase().includes(q) || (v.style||'').toLowerCase().includes(q) || (v.accent||'').toLowerCase().includes(q);
-    const matchG = gf === 'all' || v.gender === gf;
-    return matchQ && matchG;
-  });
-
-  // Sortare A→Z
-  list.sort((a, b) => a.name.localeCompare(b.name));
-
-  const grid = document.getElementById('voice-grid');
-  grid.innerHTML = '';
-
-  if (!list.length) {
-    grid.innerHTML = '<div class="col-span-5 text-center text-slate-300 text-xs py-4">Nicio voce găsită</div>';
-    return;
-  }
-
-  const accentColors = {
-    american:'#6366f1', british:'#0ea5e9', australian:'#10b981', french:'#f59e0b',
-    spanish:'#ef4444', portuguese:'#8b5cf6', indian:'#f97316', korean:'#ec4899',
-    japanese:'#14b8a6', german:'#64748b', italian:'#84cc16', arabic:'#a78bfa',
-    english:'#6366f1', other:'#94a3b8'
-  };
-
-  list.forEach(v => {
-    const isActive = v.id === selectedVoice.id;
-    const col = accentColors[v.accent] || '#94a3b8';
-    const initials = v.name.replace(/[^A-Za-zÀ-ž ]/g,'').split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase() || v.name.substring(0,2).toUpperCase();
-    const el = document.createElement('div');
-    el.className = 'vcard' + (isActive ? ' selected' : '');
-    el.title = v.style || v.name;
-    el.innerHTML = `
-      <div class="w-7 h-7 rounded-lg flex items-center justify-center text-white text-[0.6rem] font-black mx-auto mb-1 shadow-sm" style="background:${col}">${initials}</div>
-      <div class="text-[0.6rem] font-bold text-slate-800 truncate text-center">${v.name}</div>
-      <div class="text-[0.5rem] text-slate-400 truncate text-center">${v.gender === 'female' ? '♀' : v.gender === 'male' ? '♂' : '·'} ${v.accent||''}</div>
-    `;
-    el.onclick = () => {
-      selectedVoice = { id: v.id, name: v.name, provider: voiceProvider, gender: v.gender || 'male' };
-      filterVoiceGrid();
-      const provLabel = voiceProvider === 'el' ? 'ElevenLabs' : 'Minimax';
-      document.getElementById('voice-config-sel').textContent = `${v.name} (${provLabel}) · click pentru configurare`;
-    };
-    grid.appendChild(el);
-  });
-}
-
-// Alias pentru compatibilitate cu DOMContentLoaded
-function buildVoiceGrid() { filterVoiceGrid(); }
-
-// ── TRANSCRIPT HELPERS ────────────────────────────────────────
-function toggleTranscript(type, idx) {
-  const orig  = document.getElementById(`transcript-orig-${idx}`);
-  const trans = document.getElementById(`transcript-trans-${idx}`);
-  if (type === 'orig') {
-    if (orig) orig.classList.toggle('hidden');
-    if (trans) trans.classList.add('hidden');
-  } else {
-    if (trans) trans.classList.toggle('hidden');
-    if (orig) orig.classList.add('hidden');
-  }
-}
-
-function buildTranscriptHtml(data, limba, idx) {
-  if (!data.originalText && !data.translatedText) return '';
-  return `
-    <div class="grid grid-cols-2 gap-2">
-      <button onclick="toggleTranscript('orig',${idx})" class="bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold py-2 rounded-lg text-xs transition-colors"><i class="fas fa-closed-captioning text-slate-400 mr-1"></i>Original</button>
-      ${data.translatedText
-        ? `<button onclick="toggleTranscript('trans',${idx})" class="bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 text-indigo-700 font-semibold py-2 rounded-lg text-xs transition-colors"><i class="fas fa-language mr-1"></i>Traducere (${limba})</button>`
-        : `<div></div>`}
-    </div>
-    <div id="transcript-orig-${idx}" class="hidden bg-slate-50 rounded-xl p-4 border border-slate-200 relative">
-      <button onclick="copyText('transcript-orig-text-${idx}',this)" class="absolute top-2 right-2 text-xs bg-white border border-slate-200 text-slate-600 px-2 py-1 rounded-lg hover:bg-slate-100 font-bold"><i class="fas fa-copy"></i></button>
-      <p class="text-[0.65rem] font-bold text-slate-400 uppercase mb-2">Transcript Original</p>
-      <p id="transcript-orig-text-${idx}" class="text-sm text-slate-700 max-h-52 overflow-y-auto whitespace-pre-wrap leading-relaxed pr-2">${escHtml(data.originalText||'')}</p>
-    </div>
-    ${data.translatedText ? `
-    <div id="transcript-trans-${idx}" class="hidden bg-indigo-50 rounded-xl p-4 border border-indigo-100 relative">
-      <button onclick="copyText('transcript-trans-text-${idx}',this)" class="absolute top-2 right-2 text-xs bg-white border border-indigo-200 text-indigo-600 px-2 py-1 rounded-lg hover:bg-indigo-100 font-bold"><i class="fas fa-copy"></i></button>
-      <p class="text-[0.65rem] font-bold text-indigo-400 uppercase mb-2">Traducere · ${limba}</p>
-      <p id="transcript-trans-text-${idx}" class="text-sm text-slate-800 font-medium max-h-52 overflow-y-auto whitespace-pre-wrap leading-relaxed pr-2">${escHtml(data.translatedText||'')}</p>
-    </div>` : ''}
-  `;
+// ══════════════════════════════════════════════════════════════
+//  2. TABS
+// ══════════════════════════════════════════════════════════════
+function switchTab(tab){
+    const BS=document.getElementById('tab-btn-settings'), BH=document.getElementById('tab-btn-history');
+    const CS=document.getElementById('tab-settings'), CH=document.getElementById('tab-history');
+    if(tab==='settings'){
+        BS.className='flex-1 py-3 text-sm font-black border-b-2 border-viralio-600 text-viralio-600 transition-all';
+        BH.className='flex-1 py-3 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-600 transition-all';
+        CS.classList.remove('hidden'); CS.classList.add('flex');
+        CH.classList.add('hidden'); CH.classList.remove('flex');
+    } else {
+        BH.className='flex-1 py-3 text-sm font-black border-b-2 border-viralio-600 text-viralio-600 transition-all';
+        BS.className='flex-1 py-3 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-600 transition-all';
+        CH.classList.remove('hidden'); CH.classList.add('flex');
+        CS.classList.add('hidden'); CS.classList.remove('flex');
+    }
 }
 
 // ══════════════════════════════════════════════════════════════
-// VIDEO CARD — creat dinamic pentru fiecare URL
+//  2b. STATUS DOTS (per provider, verde/rosu)
 // ══════════════════════════════════════════════════════════════
+const providerStatus = { elevenlabs: [], minimax: [] };
 
-function createVideoCard(idx, url) {
-  const card = document.createElement('div');
-  card.id = `vc-${idx}`;
-  card.className = 'video-card bg-white border border-slate-200 rounded-[1.25rem] shadow-sm overflow-hidden';
-
-  // Thumbnail & iconiță per platformă
-  const ytId = url.match(/(?:v=|youtu\.be\/|shorts\/)([\w-]{11})/)?.[1] || '';
-  const isTT = /tiktok\.com/.test(url);
-  const isIG = /instagram\.com/.test(url);
-  const isFB = /facebook\.com|fb\.watch/.test(url);
-  let thumbHtml;
-  if (ytId) {
-    thumbHtml = `<img src="https://img.youtube.com/vi/${ytId}/mqdefault.jpg" class="w-14 h-10 object-cover rounded-lg shrink-0 border border-slate-100" onerror="this.style.display='none'">`;
-  } else if (isTT) {
-    thumbHtml = `<div class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style="background:#010101"><i class="fab fa-tiktok text-white text-lg"></i></div>`;
-  } else if (isIG) {
-    thumbHtml = `<div class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style="background:linear-gradient(135deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)"><i class="fab fa-instagram text-white text-lg"></i></div>`;
-  } else if (isFB) {
-    thumbHtml = `<div class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style="background:#1877f2"><i class="fab fa-facebook-f text-white text-lg"></i></div>`;
-  } else {
-    thumbHtml = `<div class="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-500 font-black text-sm shrink-0">${idx+1}</div>`;
-  }
-
-  const shortUrl = url.replace(/https?:\/\/(www\.)?/, '').substring(0, 50);
-
-  card.innerHTML = `
-    <!-- Header clickabil -->
-    <div class="flex items-center gap-3 px-5 py-3.5 cursor-pointer select-none" onclick="toggleCard(${idx})">
-      ${thumbHtml}
-      <div class="flex-1 min-w-0">
-        <div class="font-bold text-slate-800 text-sm">Video ${idx + 1}</div>
-        <div class="text-[0.6rem] text-slate-400 font-medium truncate">${escHtml(shortUrl)}</div>
-      </div>
-      <span id="vc-${idx}-badge" class="text-[0.6rem] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md bg-amber-100 text-amber-600 shrink-0 mr-1">running</span>
-      <i id="vc-${idx}-chevron" class="fas fa-chevron-down text-slate-400 text-xs chevron-anim"></i>
-    </div>
-
-    <!-- Mini step indicators -->
-    <div class="flex items-center gap-2 px-5 py-2.5 bg-slate-50/80 border-t border-b border-slate-100 flex-wrap">
-      <div class="flex items-center gap-1.5">
-        <div id="vc-${idx}-ms1" class="w-4 h-4 rounded-full bg-slate-200 flex items-center justify-center text-[0.5rem] font-black text-slate-400">1</div>
-        <span class="text-[0.6rem] font-semibold text-slate-400">Download</span>
-      </div>
-      <i class="fas fa-angle-right text-slate-200 text-[0.55rem]"></i>
-      <div class="flex items-center gap-1.5">
-        <div id="vc-${idx}-ms2" class="w-4 h-4 rounded-full bg-slate-200 flex items-center justify-center text-[0.5rem] font-black text-slate-400">2</div>
-        <span class="text-[0.6rem] font-semibold text-slate-400">Voice</span>
-      </div>
-      <i class="fas fa-angle-right text-slate-200 text-[0.55rem]"></i>
-      <div class="flex items-center gap-1.5">
-        <div id="vc-${idx}-ms3" class="w-4 h-4 rounded-full bg-slate-200 flex items-center justify-center text-[0.5rem] font-black text-slate-400">3</div>
-        <span class="text-[0.6rem] font-semibold text-slate-400">Smart Cut</span>
-      </div>
-      <div id="vc-${idx}-statustext" class="ml-auto text-[0.6rem] font-medium text-amber-600 italic truncate max-w-[45%]">Inițializare...</div>
-    </div>
-
-    <!-- Body expandabil -->
-    <div id="vc-${idx}-body" class="p-5 space-y-3">
-      <div id="vc-${idx}-loading" class="status-info flex items-center gap-2 text-sm pulse">
-        <i class="fas fa-circle-notch spin"></i> <span id="vc-${idx}-loading-msg">Se inițializează procesarea...</span>
-      </div>
-    </div>
-  `;
-  return card;
+function logApiCall(success){
+    const log = providerStatus[activeProvider];
+    log.push(success);
+    if(log.length > 6) log.shift();
+    updateStatusDots();
 }
 
-function toggleCard(idx) {
-  const body = document.getElementById(`vc-${idx}-body`);
-  const chevron = document.getElementById(`vc-${idx}-chevron`);
-  if (!body) return;
-  const isHidden = body.classList.contains('hidden');
-  body.classList.toggle('hidden');
-  chevron.style.transform = isHidden ? '' : 'rotate(-90deg)';
-}
-
-// Actualizare mini-indicator pas
-function setMiniStep(idx, step, state) {
-  const dot = document.getElementById(`vc-${idx}-ms${step}`);
-  if (!dot) return;
-  const cfgs = {
-    wait:   ['bg-slate-200','text-slate-400', step.toString()],
-    active: ['bg-amber-100','text-amber-600', '<i class="fas fa-circle-notch spin" style="font-size:0.42rem"></i>'],
-    done:   ['bg-green-100','text-green-600', '<i class="fas fa-check" style="font-size:0.42rem"></i>'],
-    error:  ['bg-red-100',  'text-red-500',   '<i class="fas fa-xmark" style="font-size:0.42rem"></i>'],
-    skip:   ['bg-slate-100','text-slate-400', '<i class="fas fa-forward" style="font-size:0.42rem"></i>'],
-  };
-  const [bg, col, html] = cfgs[state] || cfgs.wait;
-  dot.className = `w-4 h-4 rounded-full ${bg} ${col} flex items-center justify-center`;
-  dot.innerHTML = html;
-}
-
-// Actualizare badge card
-function setCardBadge(idx, state) {
-  const badge = document.getElementById(`vc-${idx}-badge`);
-  if (!badge) return;
-  const cfgs = {
-    running: ['bg-amber-100','text-amber-600', 'running'],
-    done:    ['bg-green-100','text-green-700', 'gata ✓'],
-    error:   ['bg-red-100',  'text-red-500',   'eroare'],
-    partial: ['bg-orange-100','text-orange-600','parțial'],
-  };
-  const [bg, col, label] = cfgs[state] || cfgs.running;
-  badge.className = `text-[0.6rem] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md ${bg} ${col} shrink-0 mr-1`;
-  badge.textContent = label;
-}
-
-// Text status mic
-function setCardStatus(idx, text) {
-  const el = document.getElementById(`vc-${idx}-statustext`);
-  if (el) el.textContent = text;
-}
-
-// Setare mesaj loading în body
-function setCardLoading(idx, msg) {
-  const el = document.getElementById(`vc-${idx}-loading-msg`);
-  if (el) el.textContent = msg;
-  const wrap = document.getElementById(`vc-${idx}-loading`);
-  if (wrap) wrap.style.display = '';
-}
-
-// Ascunde loading
-function clearCardLoading(idx) {
-  const el = document.getElementById(`vc-${idx}-loading`);
-  if (el) el.style.display = 'none';
-}
-
-// Adaugă/actualizează o secțiune în body-ul cardului
-function setCardSection(idx, sectionId, html) {
-  const body = document.getElementById(`vc-${idx}-body`);
-  if (!body) return;
-  let section = document.getElementById(sectionId);
-  if (!section) {
-    section = document.createElement('div');
-    section.id = sectionId;
-    section.className = 'fade-in';
-    body.appendChild(section);
-  }
-  section.innerHTML = html;
-}
-
-// ══════════════════════════════════════════════════════════════
-// PROCESS URL — rulat în paralel pentru fiecare URL
-// ══════════════════════════════════════════════════════════════
-async function processUrl(url, idx, quality, limba, skipVoice, skipCut, manualText, progressRef) {
-  const result = { url, videoUrl: null, voiceUrl: null, cutUrl: null, error: null };
-
-  // ── STEP 1: DOWNLOAD + TRANSCRIERE ─────────────────────────
-  setMiniStep(idx, 1, 'active');
-  setCardStatus(idx, 'Se descarcă...');
-  setCardLoading(idx, `Se descarcă video ${quality}p și se extrage transcrierea...`);
-
-  let data;
-  try {
-    const startRes = await fetch(`${API_BASE}/api/process-yt`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-      body: JSON.stringify({ url, quality, limba })
+function updateStatusDots(){
+    ['elevenlabs','minimax'].forEach(p => {
+        const dot = document.getElementById(p==='elevenlabs' ? 'dot-el' : 'dot-mm');
+        if(!dot) return;
+        const log = providerStatus[p];
+        // Fara date = galben (Instabil - necunoscut)
+        if(!log.length){
+            dot.style.background='#f59e0b';
+            dot.title='Instabil';
+            return;
+        }
+        const lastThree = log.slice(-3);
+        const consecFails = lastThree.length>=2 && lastThree.slice(-2).every(v=>!v);
+        const anyError = lastThree.some(v=>!v);
+        if(consecFails){
+            // 2+ erori consecutive = Nefunctional
+            dot.style.background='#ef4444';
+            dot.title='Nefunctional';
+        } else if(anyError){
+            // 1 eroare izolata = Instabil
+            dot.style.background='#f59e0b';
+            dot.title='Instabil';
+        } else {
+            // Toate OK = Functional
+            dot.style.background='#22c55e';
+            dot.title='Functional';
+        }
     });
-    const startData = await startRes.json();
-    if (!startRes.ok) throw new Error(startData.error || 'Eroare server');
+}
 
-    if (startData.status === 'done' && startData.cached) {
-      data = startData.data;
+// ══════════════════════════════════════════════════════════════
+//  2c. PROVIDER SWITCH
+// ══════════════════════════════════════════════════════════════
+let activeProvider = 'elevenlabs';
+// Separate active voice per provider
+let elVoice = 'Roger', elVoiceId = 'CwhRBWXzGAHq8TQ4Fs17';
+let mmVoice = 'Abbess', mmVoiceId = '209533299589205';
+
+function switchProvider(p){
+    activeProvider = p;
+    const isEL = p === 'elevenlabs';
+    // Toggle button styles
+    const baseBtn = 'flex-1 py-2 px-3 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-2';
+    document.getElementById('prov-btn-el').className = baseBtn + (isEL ? ' bg-white text-slate-900 shadow-sm' : ' text-slate-400');
+    document.getElementById('prov-btn-mm').className = baseBtn + (!isEL ? ' bg-white text-purple-700 shadow-sm' : ' text-slate-400');
+    // Show/hide param sections
+    document.getElementById('params-elevenlabs').classList.toggle('hidden', !isEL);
+    document.getElementById('params-minimax').classList.toggle('hidden', isEL);
+    // Update model label
+    const ml=document.getElementById('model-label');
+    if(ml) ml.innerHTML = isEL
+        ? '<i class="fa-solid fa-bolt text-amber-400 mr-1"></i> Viralio 2.5 HD'
+        : '<i class="fa-solid fa-microchip text-purple-400 mr-1"></i> Minimax 2.6 HD';
+    // Restore voice for this provider
+    const name = isEL ? elVoice : mmVoice;
+    const vid  = isEL ? elVoiceId : mmVoiceId;
+    const voices = isEL ? ALL_VOICES : ALL_MINIMAX_VOICES;
+    const vo = voices.find(v=>v.id===vid);
+    const initials = name.replace(/[^A-Za-z ]/g,'').split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase()||name.substring(0,2).toUpperCase();
+    const col = vo ? (isEL ? vColor(vo) : mmColor(vo)) : (isEL ? '#6366f1' : '#7c3aed');
+    document.getElementById('active-voice-name').innerText = name;
+    document.getElementById('active-voice-badge').innerText = vo ? vo.style : '';
+    const av=document.getElementById('active-voice-avatar');
+    if(av){ av.innerText=initials; av.style.background=col; }
+    activeVoice = name; activeVoiceId = vid;
+    // Re-render modal grid
+    renderVoiceGrid();
+}
+
+// ══════════════════════════════════════════════════════════════
+//  3. SLIDERS
+// ══════════════════════════════════════════════════════════════
+function updateSlider(id){
+    const el=document.getElementById(`param-${id}`); if(!el) return;
+    const val=parseFloat(el.value);
+    const prog=document.getElementById(`prog-${id}`);
+    const disp=document.getElementById(`${id}-val`);
+    if(id==='speed'){
+        if(disp) disp.innerText=val.toFixed(2)+'x';
+        const pct=((val-0.7)/(1.2-0.7))*100;
+        if(prog) prog.style.width=pct+'%';
     } else {
-      const jobId = startData.jobId;
-      const deadline = Date.now() + 5 * 60 * 1000;
-      while (Date.now() < deadline) {
-        await new Promise(r => setTimeout(r, 3000));
-        const pollRes = await fetch(`${API_BASE}/api/job/${jobId}`, {
-          headers: { 'Authorization': `Bearer ${authToken}` }
-        });
-        const poll = await pollRes.json();
-        if (!pollRes.ok) throw new Error(poll.error || 'Eroare polling');
-        const progress = poll.progress || 'Se procesează...';
-        setCardStatus(idx, progress);
-        setCardLoading(idx, progress);
-        if (poll.status === 'done') { data = poll.data; break; }
-        if (poll.status === 'error') throw new Error(poll.error || 'Eroare procesare');
-      }
-      if (!data) throw new Error('Timeout: procesarea a durat prea mult (5 min).');
+        if(disp) disp.innerText=val+'%';
+        if(prog) prog.style.width=val+'%';
     }
+}
 
-    result.videoUrl = data.downloadUrl;
-    result.originalText = data.originalText;
-    result.transcript = data.translatedText || data.originalText || null;
+function updateSliderMM(id){
+    const el=document.getElementById(`param-${id}`); if(!el) return;
+    const val=parseFloat(el.value);
+    const prog=document.getElementById(`prog-${id}`);
+    const disp=document.getElementById(`${id}-val`);
+    if(id==='mm-speed'){
+        if(disp) disp.innerText=val.toFixed(2)+'x';
+        const pct=((val-0.5)/(2.0-0.5))*100;
+        if(prog) prog.style.width=pct+'%';
+    } else if(id==='mm-pitch'){
+        if(disp) disp.innerText=(val>=0?'+':'')+val;
+        const pct=((val-(-12))/(24))*100;
+        if(prog) prog.style.width=pct+'%';
+    } else if(id==='mm-vol'){
+        if(disp) disp.innerText=parseFloat(val).toFixed(2);
+        const pct=((val-0.01)/(9.99))*100;
+        if(prog) prog.style.width=pct+'%';
+    }
+}
 
-    if (data.creditsLeft !== undefined) document.getElementById('nav-credits').textContent = Math.floor(data.creditsLeft);
-    if (data.voice_characters !== undefined) document.getElementById('nav-chars').textContent = (data.voice_characters || 0).toLocaleString();
+// ══════════════════════════════════════════════════════════════
+//  4. VOICE MODAL
+// ══════════════════════════════════════════════════════════════
+let activeVoice   = 'Roger';
+let activeVoiceId = 'CwhRBWXzGAHq8TQ4Fs17';
+let vmFilter = 'all';
+let vmSearch = '';
+let vmSort   = 'az';
+let previewAudio = null;
+let previewActiveId = null;
 
-    setMiniStep(idx, 1, 'done');
-    setCardStatus(idx, 'Download ✓');
-    clearCardLoading(idx);
+function openVoiceModal(){
+    document.getElementById('vm-overlay').classList.add('vm-open');
+    document.body.style.overflow='hidden';
+    vmSearch='';
+    document.getElementById('vm-search-input').value='';
+    // Arată filtrele corecte
+    const isMM = activeProvider==='minimax';
+    document.getElementById('vm-filters-el').classList.toggle('hidden', isMM);
+    document.getElementById('vm-filters-mm').classList.toggle('hidden', !isMM);
+    const sub=document.getElementById('vm-header-sub-count');
+    if(sub) sub.innerText=(isMM?ALL_MINIMAX_VOICES:ALL_VOICES).length;
+    setVmFilter('all', false);
+    renderVoiceGrid();
+    setTimeout(()=>{ const s=document.getElementById('vm-search-input'); if(s) s.focus(); },350);
+}
+function closeVoiceModal(){
+    document.getElementById('vm-overlay').classList.remove('vm-open');
+    document.body.style.overflow='';
+    stopPreview();
+}
 
-    const transcriptHtml = buildTranscriptHtml(data, limba, idx);
-    setCardSection(idx, `vc-${idx}-dl`, `
-      <div class="space-y-2">
-        <div class="flex items-center gap-1.5 text-[0.6rem] font-bold text-slate-400 uppercase tracking-wide">
-          <i class="fas fa-check-circle text-green-500"></i> Download complet
-        </div>
-        <a href="${data.downloadUrl}" class="flex items-center gap-2 bg-slate-900 hover:bg-viralio-600 text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow transition-all" download>
-          <i class="fas fa-film text-indigo-300"></i> Descarcă Video MP4 ${quality}p
-        </a>
-        ${transcriptHtml}
-      </div>
-    `);
+function setVmFilter(f, render=true){
+    vmFilter=f;
+    document.querySelectorAll('.vmf').forEach(b=>b.classList.toggle('vmf-on', b.dataset.f===f));
+    if(render) renderVoiceGrid();
+}
 
-  } catch(e) {
-    result.error = e.message;
-    setMiniStep(idx, 1, 'error');
-    setMiniStep(idx, 2, 'skip');
-    setMiniStep(idx, 3, 'skip');
-    setCardBadge(idx, 'error');
-    setCardStatus(idx, 'Eroare');
-    clearCardLoading(idx);
-    setCardSection(idx, `vc-${idx}-dl`, `
-      <div class="status-error flex items-start gap-2 text-sm">
-        <i class="fas fa-circle-xmark mt-0.5 shrink-0"></i>
-        <div>${escHtml(e.message)}</div>
-      </div>
-    `);
-    progressRef.done++;
-    setRibbon('Batch activ', `${progressRef.done}/${progressRef.total} finalizate`, progressRef.done, progressRef.total);
-    return result;
-  }
+function setSortMode(mode){
+    vmSort=mode;
+    document.querySelectorAll('.vm-sort-btn').forEach(b=>b.classList.remove('active'));
+    const btn=document.getElementById(`sort-${mode}`); if(btn) btn.classList.add('active');
+    renderVoiceGrid();
+}
 
-  // ── STEP 2: VOICE ───────────────────────────────────────────
-  if (!skipVoice) {
-    let textToSpeak = manualText || result.transcript;
+function stopPreview(){
+    if(previewAudio){ previewAudio.pause(); previewAudio=null; }
+    if(previewActiveId){
+        const btn=document.querySelector(`.vm-play-btn[data-vid="${previewActiveId}"]`);
+        if(btn){ btn.innerHTML='<i class="fa-solid fa-play" style="font-size:.6rem;margin-left:1px"></i>'; btn.classList.remove('playing'); }
+    }
+    previewActiveId=null;
+}
 
-    if (!textToSpeak) {
-      setMiniStep(idx, 2, 'skip');
-      setCardSection(idx, `vc-${idx}-voice`, `
-        <div class="status-error text-sm">Nicio sursă de text pentru voice-over. Activează "Text manual".</div>
-      `);
-    } else {
-      setMiniStep(idx, 2, 'active');
-      setCardStatus(idx, 'Voice-over...');
-      setCardLoading(idx, `Se generează voice-over cu ${selectedVoice.name} (${textToSpeak.length} chars)...`);
+function togglePreview(vid, btn){
+    if(previewActiveId===vid){ stopPreview(); return; }
+    stopPreview();
+    previewActiveId=vid;
+    const url=`/assets/previews/${vid}.mp3`;
+    previewAudio=new Audio(url);
+    previewAudio.play().catch(()=>{});
+    btn.innerHTML='<i class="fa-solid fa-pause" style="font-size:.6rem"></i>';
+    btn.classList.add('playing');
+    previewAudio.onended=()=>{ btn.innerHTML='<i class="fa-solid fa-play" style="font-size:.6rem;margin-left:1px"></i>'; btn.classList.remove('playing'); previewActiveId=null; previewAudio=null; };
+}
 
-      // Traducere suplimentară dacă e nevoie
-      if (!manualText && result.transcript) {
-        try {
-          const tRes = await fetch(`${API_BASE}/api/translate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-            body: JSON.stringify({ text: textToSpeak, limba })
-          });
-          const tData = await tRes.json();
-          if (tRes.ok && tData.translated) textToSpeak = tData.translated;
-        } catch(e) {}
-      }
+function renderVoiceGrid(){
+    const q=vmSearch.toLowerCase();
+    const isMM = activeProvider === 'minimax';
+    const sourceList = isMM ? ALL_MINIMAX_VOICES : ALL_VOICES;
+    let list=[...sourceList];
 
-      try {
-        const isMM = selectedVoice.provider === 'mm';
-        const vRes = await fetch(`${API_BASE}/api/generate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-          body: JSON.stringify({
-            text: textToSpeak,
-            voiceId: selectedVoice.id,
-            voice: selectedVoice.name,
-            provider: isMM ? 'minimax' : 'elevenlabs',
-            // ElevenLabs params
-            stability: isMM ? undefined : parseFloat(document.getElementById('sl-stability').value),
-            similarity_boost: isMM ? undefined : parseFloat(document.getElementById('sl-similarity').value),
-            speed: isMM
-              ? parseFloat(document.getElementById('sl-speed-mm').value)
-              : parseFloat(document.getElementById('sl-speed').value),
-            // Minimax params
-            pitch: isMM ? parseInt(document.getElementById('sl-pitch-mm').value) : undefined,
-            vol:   isMM ? parseFloat(document.getElementById('sl-vol-mm').value) : undefined,
-            language_boost: isMM ? 'Auto' : undefined,
-          })
-        });
-        const vData = await vRes.json();
-        if (!vRes.ok) throw new Error(vData.error || 'Eroare voice');
+    // Filter
+    const accentFilters=['american','british','australian','spanish','french','indian','korean','japanese','german','italian','arabic','chinese','irish','romanian','portuguese'];
+    if(accentFilters.includes(vmFilter))       list=list.filter(v=>v.accent===vmFilter);
+    else if(vmFilter==='male')    list=list.filter(v=>v.gender==='male');
+    else if(vmFilter==='female')  list=list.filter(v=>v.gender==='female');
+    else if(vmFilter==='special') list=list.filter(v=>v.gender==='special');
+    else if(vmFilter==='shared')  list=list.filter(v=>v.tags&&v.tags.includes('shared'));
+    else if(vmFilter==='young')   list=list.filter(v=>v.tags&&v.tags.includes('young'));
+    else if(vmFilter==='mature')  list=list.filter(v=>v.tags&&v.tags.includes('mature'));
 
-        result.voiceUrl = vData.audioUrl;
-        if (vData.remaining_chars !== undefined) document.getElementById('nav-chars').textContent = (vData.remaining_chars || 0).toLocaleString();
+    if(q) list=list.filter(v=>v.name.toLowerCase().includes(q)||v.style.toLowerCase().includes(q)||v.accent.toLowerCase().includes(q));
 
-        setMiniStep(idx, 2, 'done');
-        setCardStatus(idx, 'Voice ✓');
-        clearCardLoading(idx);
-        setCardSection(idx, `vc-${idx}-voice`, `
-          <div class="space-y-2">
-            <div class="flex items-center gap-1.5 text-[0.6rem] font-bold text-slate-400 uppercase tracking-wide">
-              <i class="fas fa-check-circle text-green-500"></i> Voice generat cu ${escHtml(selectedVoice.name)}
+    // Sort
+    if(vmSort==='az')     list.sort((a,b)=>a.name.localeCompare(b.name));
+    else if(vmSort==='gender') list.sort((a,b)=>a.gender.localeCompare(b.gender)||a.name.localeCompare(b.name));
+    else if(vmSort==='use')    list.sort((a,b)=>a.use.localeCompare(b.use)||a.name.localeCompare(b.name));
+
+    const grid=document.getElementById('vm-grid');
+    const empty=document.getElementById('vm-empty');
+    const countEl=document.getElementById('vm-result-count');
+    if(countEl) countEl.innerText=list.length;
+
+    if(!list.length){
+        grid.innerHTML=''; empty.style.display='flex'; return;
+    }
+    empty.style.display='none';
+
+    grid.innerHTML=list.map((v,i)=>{
+        const col=isMM?mmColor(v):vColor(v);
+        const initials=v.name.replace(/[^A-Za-zÀ-ž ]/g,'').split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase()||v.name.substring(0,2).toUpperCase();
+        const isActive=v.id===activeVoiceId;
+        const genderLabel=v.gender==='female'?'Feminin':v.gender==='male'?'Masculin':'Special';
+        const genderClass=v.gender==='female'?'vm-g-f':v.gender==='male'?'vm-g-m':'vm-g-s';
+        const useLabel=USE_LABELS[v.use]||'⚡ General';
+        const delay=Math.min(i*0.015, 0.3);
+        return `<div class="vm-card${isActive?' vm-card-active':''}" 
+                     style="animation-delay:${delay}s"
+                     onclick="pickVoice('${v.name.replace(/'/g,"\\'")}','${v.id}','${v.style.replace(/'/g,"\\'")}','${v.gender}')">
+            <div class="vm-card-top">
+                <div class="vm-avatar" style="background:${col}" title="${v.accent}">${initials}</div>
+                <div class="vm-card-info">
+                    <div class="vm-card-name">${v.name}</div>
+                    <span class="vm-gender-badge ${genderClass}">${genderLabel}</span>
+                </div>
+                <button class="vm-play-btn${previewActiveId===v.id?' playing':''}" data-vid="${v.id}" 
+                        onclick="event.stopPropagation();togglePreview('${v.id}',this)" title="Preview voce">
+                    <i class="fa-solid ${previewActiveId===v.id?'fa-pause':'fa-play'}" style="font-size:.6rem;margin-left:${previewActiveId===v.id?'0':'1px'}"></i>
+                </button>
             </div>
-            <audio controls src="${vData.audioUrl}" class="w-full rounded-xl" style="height:40px"></audio>
-            <a href="${vData.audioUrl}" class="flex items-center gap-2 bg-indigo-50 border border-indigo-200 hover:border-indigo-400 text-indigo-800 px-4 py-2 rounded-xl font-bold text-sm transition-all" download>
-              <i class="fas fa-microphone-lines text-indigo-500"></i> Descarcă Voice-over MP3
-            </a>
-          </div>
-        `);
+            <div class="vm-style">${v.style}</div>
+            <div class="vm-use-pill">${useLabel}</div>
+            ${isActive?'<div class="vm-active-badge"><i class="fa-solid fa-check"></i> Activ</div>':''}
+        </div>`;
+    }).join('');
+}
 
-      } catch(e) {
-        setMiniStep(idx, 2, 'error');
-        clearCardLoading(idx);
-        setCardSection(idx, `vc-${idx}-voice`, `<div class="status-error text-sm">${escHtml(e.message)}</div>`);
-      }
+function pickVoice(name, vid, style, gender){
+    activeVoice=name; activeVoiceId=vid;
+    // Salvează per provider
+    if(activeProvider==='minimax'){ mmVoice=name; mmVoiceId=vid; }
+    else { elVoice=name; elVoiceId=vid; }
+    const nameEl=document.getElementById('active-voice-name');
+    const badgeEl=document.getElementById('active-voice-badge');
+    const avEl=document.getElementById('active-voice-avatar');
+    if(nameEl) nameEl.innerText=name;
+    if(badgeEl) badgeEl.innerText=style;
+    if(avEl){
+        const initials=name.replace(/[^A-Za-z ]/g,'').split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase()||name.substring(0,2).toUpperCase();
+        avEl.innerText=initials;
+        const isMM = activeProvider==='minimax';
+        const vo=isMM ? ALL_MINIMAX_VOICES.find(v=>v.id===vid) : ALL_VOICES.find(v=>v.id===vid);
+        avEl.style.background=vo?(isMM?mmColor(vo):vColor(vo)):(isMM?'#7c3aed':'#6366f1');
     }
-  } else {
-    setMiniStep(idx, 2, 'skip');
-  }
-
-  // ── STEP 3: SMART CUT ───────────────────────────────────────
-  if (!skipCut && result.voiceUrl) {
-    setMiniStep(idx, 3, 'active');
-    setCardStatus(idx, 'Smart Cut...');
-    setCardLoading(idx, 'Smart Cut procesează audio-ul — elimină pauzele...');
-
-    try {
-      const audioBlob = await fetch(result.voiceUrl).then(r => r.blob());
-      const audioFile = new File([audioBlob], 'audio.mp3', { type: 'audio/mpeg' });
-      const formData = new FormData();
-      formData.append('file', audioFile);
-      formData.append('minSilence', document.getElementById('sl-silence').value);
-      formData.append('threshold', document.getElementById('sl-thresh').value + 'dB');
-
-      const scRes = await fetch(`${API_BASE}/api/smart-cut`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${authToken}` },
-        body: formData
-      });
-      const scData = await scRes.json();
-      if (!scRes.ok) throw new Error(scData.error || 'Eroare smart cut');
-
-      result.cutUrl = scData.downloadUrl;
-      if (scData.creditsLeft !== undefined) document.getElementById('nav-credits').textContent = Math.floor(scData.creditsLeft);
-
-      setMiniStep(idx, 3, 'done');
-      setCardStatus(idx, 'Smart Cut ✓');
-      clearCardLoading(idx);
-      setCardSection(idx, `vc-${idx}-cut`, `
-        <div class="space-y-2">
-          <div class="flex items-center gap-1.5 text-[0.6rem] font-bold text-slate-400 uppercase tracking-wide">
-            <i class="fas fa-check-circle text-green-500"></i> Smart Cut finalizat
-          </div>
-          <audio controls src="${scData.downloadUrl}" class="w-full rounded-xl" style="height:40px"></audio>
-          <a href="${scData.downloadUrl}" class="flex items-center gap-2 bg-green-50 border border-green-200 hover:border-green-400 text-green-800 px-4 py-2 rounded-xl font-bold text-sm transition-all" download>
-            <i class="fas fa-scissors text-green-500"></i> Descarcă Smart Cut MP3
-          </a>
-        </div>
-      `);
-
-    } catch(e) {
-      setMiniStep(idx, 3, 'error');
-      clearCardLoading(idx);
-      setCardSection(idx, `vc-${idx}-cut`, `<div class="status-error text-sm">${escHtml(e.message)}</div>`);
-    }
-
-  } else if (!skipCut && !result.voiceUrl) {
-    setMiniStep(idx, 3, 'skip');
-  } else {
-    setMiniStep(idx, 3, 'skip');
-  }
-
-  // ── DONE ───────────────────────────────────────────────────
-  const hasVideo = !!result.videoUrl;
-  setCardBadge(idx, hasVideo ? 'done' : 'error');
-  if (hasVideo) {
-    setCardStatus(idx, 'Gata! ✓');
-    // Adaugă Caption Remover link la final
-    setCardSection(idx, `vc-${idx}-caption`, `
-      <a href="https://captions.viralio.ro/" target="_blank"
-         class="w-full flex items-center justify-center gap-2 bg-gradient-viralio hover:opacity-90 text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow-md transition-all">
-        <i class="fas fa-closed-captioning"></i> Caption Remover
-        <i class="fas fa-arrow-right text-xs opacity-70"></i>
-      </a>
-    `);
-  }
-
-  clearCardLoading(idx);
-
-  progressRef.done++;
-  setRibbon('Batch activ', `${progressRef.done}/${progressRef.total} finalizate`, progressRef.done, progressRef.total);
-
-  return result;
+    stopPreview();
+    closeVoiceModal();
 }
 
-// ══════════════════════════════════════════════════════════════
-// RUN PIPELINE — lansează toate URL-urile în PARALEL
-// ══════════════════════════════════════════════════════════════
-async function runPipeline() {
-  if (!requireAuth()) return;
-
-  const urlInputs = [...document.querySelectorAll('.url-input')]
-    .map(i => i.value.trim()).filter(Boolean);
-
-  if (urlInputs.length === 0) { alert('Lipește cel puțin un link video!'); return; }
-  const invalid = urlInputs.filter(u => !/youtu|tiktok|instagram|facebook|fb\.watch|vm\.tiktok|vt\.tiktok/.test(u));
-  if (invalid.length > 0) { alert('Link invalid (trebuie să fie YouTube, TikTok, Instagram sau Facebook):\n' + invalid.join('\n')); return; }
-
-  const quality    = document.getElementById('dl-quality').value;
-  const limba      = document.getElementById('dl-limba').value;
-  const skipVoice  = false;
-  const skipCut    = false;
-  const manualText = null;
-
-  const btn = document.getElementById('run-btn');
-  btn.disabled = true;
-  btn.innerHTML = `<i class="fas fa-circle-notch spin"></i> Se procesează ${urlInputs.length} video${urlInputs.length > 1 ? 'uri' : ''}...`;
-
-  // Pregătire container batch
-  const batchContainer = document.getElementById('batch-container');
-  batchContainer.innerHTML = '';
-  batchContainer.classList.remove('hidden');
-
-  // Creează câte un card pentru fiecare URL
-  urlInputs.forEach((url, idx) => {
-    batchContainer.appendChild(createVideoCard(idx, url));
-  });
-
-  // Scroll la primul card
-  setTimeout(() => batchContainer.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
-
-  // Progress tracker global
-  const progressRef = { done: 0, total: urlInputs.length };
-  setRibbon(
-    `Procesare ${urlInputs.length} video${urlInputs.length > 1 ? 'uri' : ''}`,
-    '0/' + urlInputs.length + ' finalizate · procesare paralelă · nu închide pagina',
-    0, urlInputs.length
-  );
-
-  // ★ PROCESARE PARALELĂ — toate URL-urile pornesc simultan ★
-  await Promise.allSettled(
-    urlInputs.map((url, idx) =>
-      processUrl(url, idx, quality, limba, skipVoice, skipCut, manualText, progressRef)
-    )
-  );
-
-  // Finalizat
-  const doneCount = progressRef.done;
-  setRibbon(
-    `Pipeline complet! 🎉`,
-    `${doneCount}/${urlInputs.length} video${urlInputs.length > 1 ? 'uri' : ''} procesate`,
-    doneCount, urlInputs.length
-  );
-  setTimeout(hideRibbon, 5000);
-
-  btn.disabled = false;
-  btn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> PORNEȘTE DIN NOU · <span class="bg-white/20 rounded-md px-1.5 py-0.5 text-xs font-black">2 credite/video</span>';
-}
-
-// ── UTILS ─────────────────────────────────────────────────────
-function copyText(id, btn) {
-  const text = document.getElementById(id)?.innerText;
-  if (!text) return;
-  navigator.clipboard.writeText(text).then(() => {
-    const orig = btn.innerHTML;
-    btn.innerHTML = '<i class="fas fa-check text-green-600"></i>';
-    setTimeout(() => btn.innerHTML = orig, 2000);
-  });
-}
-
-function escHtml(s) { const d=document.createElement('div'); d.appendChild(document.createTextNode(s)); return d.innerHTML; }
-
-// Paste URL cu auto-detect
-document.getElementById('url-list').addEventListener('paste', (e) => {
-  const input = e.target.closest('.url-input');
-  if (!input) return;
-  setTimeout(() => {
-    if (/youtu|tiktok|instagram|facebook|fb\.watch/.test(input.value)) { input.style.borderColor='#a5b4fc'; input.style.background='#eef2ff'; }
-    else { input.style.borderColor=''; input.style.background=''; }
-  }, 50);
+// Search & keyboard
+document.addEventListener('DOMContentLoaded',()=>{
+    const si=document.getElementById('vm-search-input');
+    if(si) si.addEventListener('input',e=>{ vmSearch=e.target.value; renderVoiceGrid(); });
+    document.getElementById('vm-overlay').addEventListener('click',e=>{ if(e.target===document.getElementById('vm-overlay')) closeVoiceModal(); });
+    document.addEventListener('keydown',e=>{
+        if((e.metaKey||e.ctrlKey)&&e.key==='k'){ e.preventDefault(); openVoiceModal(); }
+        if(e.key==='Escape') closeVoiceModal();
+    });
+    renderVoiceGrid();
 });
-<!-- Voice data — trebuie să existe în public/ -->
-<script src="/voices.js"></script>
-<script src="/minimax-voices.js"></script>
+
+// ══════════════════════════════════════════════════════════════
+//  5. EDITOR & CREDITE
+// ══════════════════════════════════════════════════════════════
+const textInput=document.getElementById('script-input');
+function getRealCharCount(text){ return text.replace(/\s+/g,'').length; }
+
+function checkFunds(){
+    if(!textInput) return;
+    const cost=getRealCharCount(textInput.value);
+    const cc=document.getElementById('cost-container');
+    if(!cc) return;
+    if(getToken()&&cost>currentVoiceCharacters) cc.classList.replace('text-amber-500','text-red-500');
+    else cc.classList.replace('text-red-500','text-amber-500');
+}
+
+if(textInput){
+    textInput.addEventListener('input',()=>{
+        let text=textInput.value;
+        if(text.length>5000){ textInput.value=text.substring(0,5000); text=textInput.value; }
+        const real=getRealCharCount(text);
+        const cc=document.getElementById('char-count');
+        if(cc){ cc.innerText=real; cc.className=real>4500?'text-red-500 font-black':'text-viralio-600 font-black'; }
+        const cco=document.getElementById('char-cost');
+        if(cco) cco.innerText=real.toLocaleString('ro-RO');
+        checkFunds();
+    });
+}
+
+function clearText(){ if(textInput){ textInput.value=''; textInput.dispatchEvent(new Event('input')); } }
+async function pasteText(){ try{ if(textInput){ textInput.value+=await navigator.clipboard.readText(); textInput.dispatchEvent(new Event('input')); } }catch(e){} }
+
+// ══════════════════════════════════════════════════════════════
+//  6. API GENERARE
+// ══════════════════════════════════════════════════════════════
+async function processAudio(){
+    const token=getToken();
+    if(!token){ openLoginModal(); return; }
+    if(!textInput) return;
+    const text=textInput.value.trim();
+    if(!text) return alert('Scrie text pentru a genera vocea.');
+    const cost=getRealCharCount(text);
+    if(cost>currentVoiceCharacters){ alert(`Nu ai suficiente caractere! Ai nevoie de ${cost}, dar mai ai doar ${currentVoiceCharacters}.`); return; }
+    const btn=document.getElementById('generateBtn');
+    if(btn){ btn.classList.add('is-generating'); btn.disabled=true; }
+    try{
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 120000);
+        let res, data;
+        const isMM = activeProvider === 'minimax';
+        const body = isMM ? {
+            text, voice: activeVoice,
+            provider: 'minimax',
+            minimaxVoiceId: activeVoiceId,
+            speed: parseFloat(document.getElementById('param-mm-speed').value),
+            pitch: parseInt(document.getElementById('param-mm-pitch').value),
+            vol: parseFloat(document.getElementById('param-mm-vol').value),
+            language_boost: document.getElementById('param-lang').value
+        } : {
+            text, voice: activeVoice, voiceId: activeVoiceId,
+            stability: parseFloat(document.getElementById('param-stab').value)/100,
+            similarity_boost: parseFloat(document.getElementById('param-sim').value)/100,
+            speed: parseFloat(document.getElementById('param-speed').value)
+        };
+        try {
+            res = await fetch('/api/generate',{
+                method:'POST',
+                headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
+                body: JSON.stringify(body),
+                signal: controller.signal
+            });
+        } catch(fetchErr) {
+            logApiCall(false);
+            if(fetchErr.name === 'AbortError') throw new Error('Timeout — serverul nu a răspuns. Încearcă din nou.');
+            throw fetchErr;
+        } finally { clearTimeout(timeoutId); }
+        data = await res.json();
+        if(!res.ok){ logApiCall(false); throw new Error(data.error||'Eroare la generare.'); }
+        logApiCall(true);
+        launchPlayer(data.audioUrl, activeVoice, text);
+        addToHistory(text, activeVoice, data.audioUrl);
+        currentVoiceCharacters=data.remaining_chars||(currentVoiceCharacters-cost);
+        const nc=document.getElementById('nav-chars');
+        if(nc) nc.innerText=currentVoiceCharacters.toLocaleString('ro-RO');
+        checkFunds();
+    } catch(e){
+        alert(e.message);
+    } finally {
+        if(btn){ btn.classList.remove('is-generating'); btn.disabled=false; }
+    }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  7. PLAYER
+// ══════════════════════════════════════════════════════════════
+const audio=document.getElementById('core-audio');
+const playerBar=document.getElementById('player-bar');
+const playBtn=document.getElementById('player-play-btn');
+const playBtnIcon=playBtn?playBtn.querySelector('i'):null;
+const trackFill=document.getElementById('track-fill');
+const eqContainer=document.getElementById('eq-container');
+
+function formatTime(s){ if(isNaN(s))return'0:00'; const m=Math.floor(s/60),ss=Math.floor(s%60); return`${m}:${ss<10?'0':''}${ss}`; }
+
+function launchPlayer(url, voiceName, text){
+    if(!audio||!playerBar) return;
+    audio.src=url;
+    const dl=document.getElementById('download-btn'); if(dl) dl.href=url;
+    const pt=document.getElementById('nowPlayingText'); if(pt) pt.innerText=`${voiceName}: "${text.substring(0,30)}..."`;
+    playerBar.style.transform='translate(-50%, 0)';
+    audio.play().catch(e=>console.error(e));
+}
+function closePlayer(){ if(audio) audio.pause(); if(playerBar) playerBar.style.transform='translate(-50%, 150%)'; }
+if(playBtn) playBtn.onclick=()=>audio.paused?audio.play():audio.pause();
+if(audio){
+    audio.onloadedmetadata=()=>{ const tt=document.getElementById('time-total'); if(tt) tt.innerText=formatTime(audio.duration); };
+    audio.onplay=()=>{ if(playBtnIcon) playBtnIcon.className='fa-solid fa-pause'; if(eqContainer) eqContainer.classList.add('playing'); };
+    audio.onpause=()=>{ if(playBtnIcon) playBtnIcon.className='fa-solid fa-play ml-1'; if(eqContainer) eqContainer.classList.remove('playing'); };
+    audio.onended=()=>{ if(playBtnIcon) playBtnIcon.className='fa-solid fa-play ml-1'; if(eqContainer) eqContainer.classList.remove('playing'); if(trackFill) trackFill.style.width='0%'; const tc=document.getElementById('time-current'); if(tc) tc.innerText='0:00'; };
+    audio.ontimeupdate=()=>{ if(audio.duration){ if(trackFill) trackFill.style.width=(audio.currentTime/audio.duration*100)+'%'; const tc=document.getElementById('time-current'); if(tc) tc.innerText=formatTime(audio.currentTime); } };
+}
+function seekTrack(e){ const bg=document.getElementById('track-bg'); if(!bg||!audio) return; const r=bg.getBoundingClientRect(); audio.currentTime=((e.clientX-r.left)/r.width)*audio.duration; }
+
+// ══════════════════════════════════════════════════════════════
+//  8. ISTORIC
+// ══════════════════════════════════════════════════════════════
+function addToHistory(text, voice, url){
+    const box=document.getElementById('history-box'); if(!box) return;
+    if(box.querySelector('#empty-history')) box.innerHTML='';
+    const hist=JSON.parse(localStorage.getItem('viralio_voice_hist')||'[]');
+    hist.unshift({text:text.substring(0,60), voice, url, time:new Date().toLocaleTimeString('ro-RO',{hour:'2-digit',minute:'2-digit'})});
+    if(hist.length>20) hist.pop();
+    localStorage.setItem('viralio_voice_hist',JSON.stringify(hist));
+    renderHistory();
+}
+
+function renderHistory(){
+    const hist=JSON.parse(localStorage.getItem('viralio_voice_hist')||'[]');
+    const box=document.getElementById('history-box'); if(!box) return;
+    if(!hist.length) return;
+    box.innerHTML='';
+    hist.forEach((h,i)=>{
+        const el=document.createElement('div');
+        el.className='p-3 bg-slate-50 border border-slate-100 rounded-xl hover:border-viralio-200 transition-all group flex items-center justify-between gap-3 shadow-sm';
+        el.dataset.url=h.url; el.dataset.voice=h.voice; el.dataset.text=h.text;
+        el.innerHTML=`
+            <button class="hist-play w-9 h-9 shrink-0 rounded-full bg-white shadow-md flex items-center justify-center text-slate-600 group-hover:bg-viralio-600 group-hover:text-white transition-all border border-slate-100">
+                <i class="fa-solid fa-play text-[0.7rem] ml-0.5"></i>
+            </button>
+            <div class="flex-1 overflow-hidden cursor-pointer hist-play">
+                <p class="text-xs font-bold text-slate-800 truncate">${h.text}...</p>
+                <p class="text-[0.65rem] font-bold text-slate-400 mt-0.5"><span class="text-indigo-500">${h.voice}</span> · ${h.time}</p>
+            </div>
+            <a href="${h.url}" download="viralio_voice.mp3" class="w-8 h-8 shrink-0 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-all">
+                <i class="fa-solid fa-download text-xs"></i>
+            </a>`;
+        el.querySelectorAll('.hist-play').forEach(btn=>{
+            btn.addEventListener('click',()=>launchPlayer(h.url, h.voice, h.text));
+        });
+        box.appendChild(el);
+    });
+}
+
+function clearHistory(){ localStorage.removeItem('viralio_voice_hist'); const box=document.getElementById('history-box'); if(box) box.innerHTML='<div class="text-center text-slate-400 text-sm font-medium py-10" id="empty-history">Nu ai generat nimic încă.</div>'; }
+</script>
 </body>
 </html>
