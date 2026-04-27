@@ -13,7 +13,7 @@ const helmet = require('helmet');
 
 const { authenticate, hubAPI } = require('./hub-auth');
 
-const REQUIRED_ENV = ['OPENAI_API_KEY', 'HUB_URL', 'INTERNAL_API_KEY', 'AI33_API_KEY', 'PROXY_URL'];
+const REQUIRED_ENV = ['OPENAI_API_KEY', 'HUB_URL', 'INTERNAL_API_KEY', 'DUBVOICE_API_KEY', 'PROXY_URL'];
 for (const key of REQUIRED_ENV) {
     if (!process.env[key]) { console.error(`❌ Variabila de mediu lipsă: ${key}`); process.exit(1); }
 }
@@ -24,8 +24,8 @@ process.on('unhandledRejection', (reason) => { console.error('⚠️ Unhandled R
 app.set('trust proxy', 1);
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const AI33_API_KEY = process.env.AI33_API_KEY;
-const AI33_BASE_URL = 'https://api.ai33.pro';
+const DUBVOICE_API_KEY = process.env.DUBVOICE_API_KEY;
+const VOICE_API_BASE = 'https://www.dubvoice.ai';
 const PROXY_URL = process.env.PROXY_URL;
 
 const DOWNLOAD_DIR = path.resolve(__dirname, 'downloads');
@@ -378,7 +378,7 @@ const getTranscriptAndTranslation = async (url, videoId, limba = 'română', exi
     }
 };
 
-// ── AI33 HELPERS ─────────────────────────────────────────────
+// ── VOICE API HELPERS ───────────────────────────────────────
 function downloadVoiceFile(url, dest) {
     return new Promise((resolve, reject) => {
         const file = fs.createWriteStream(dest);
@@ -390,24 +390,24 @@ function downloadVoiceFile(url, dest) {
     });
 }
 
-async function pollAI33Task(taskId, maxWait = 60000) {
+async function pollVoiceTask(taskId, maxWait = 75000) {
     const interval = 3000, maxAttempts = Math.floor(maxWait / interval);
     for (let i = 0; i < maxAttempts; i++) {
         await new Promise(r => setTimeout(r, interval));
         let resp;
-        try { resp = await fetch(`${AI33_BASE_URL}/v1/task/${taskId}`, { headers: { 'xi-api-key': AI33_API_KEY }, signal: AbortSignal.timeout(10000) }); }
+        try { resp = await fetch(`${VOICE_API_BASE}/api/v1/tts/${taskId}`, { headers: { 'Authorization': `Bearer ${DUBVOICE_API_KEY}` }, signal: AbortSignal.timeout(10000) }); }
         catch(e) { continue; }
         if (resp.status === 503 || resp.status === 502) continue;
         if (!resp.ok) throw new Error(`Polling fail: ${resp.status}`);
         const task = await resp.json();
-        if (task.status === 'done') {
-            const audioUrl = task.metadata?.audio_url || task.output_uri || task.metadata?.output_uri;
-            if (!audioUrl) throw new Error('Task done fără URL.');
+        if (task.status === 'completed') {
+            const audioUrl = task.result;
+            if (!audioUrl) throw new Error('Task finalizat fără URL audio.');
             return audioUrl;
         }
-        if (task.status === 'error' || task.status === 'failed') throw new Error(task.error_message || 'Eroare AI33.');
+        if (task.status === 'error' || task.status === 'failed') throw new Error(task.error || 'Eroare la procesarea vocii.');
     }
-    throw new Error('Timeout: 60s depășit.');
+    throw new Error('Timeout: 75s depășit. Încearcă din nou.');
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -613,7 +613,7 @@ app.post('/api/translate', authenticate, async (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════════════
-// ██ /api/generate — Voice Generation AI33 (ElevenLabs + Minimax)
+// ██ /api/generate — Voice Generation (ElevenLabs + Minimax)
 // ══════════════════════════════════════════════════════════════
 app.post('/api/generate', authenticate, async (req, res) => {
     try {
@@ -641,13 +641,10 @@ app.post('/api/generate', authenticate, async (req, res) => {
         const rawId = voiceId || minimaxVoiceId || '';
         const isMinimax = provider === 'minimax' || /^\d{10,}$/.test(rawId);
 
-        let ai33Resp, ai33Url, ai33Body;
+        let voiceResp, outputUrl;
 
         if (isMinimax) {
-            // ── MINIMAX (conform AI33 API docs oficiale) ─────────
-            // Endpoint: /v1m/task/text-to-speech
-            // Model: speech-2.6-hd
-            // vol: 0.5-2.0, pitch: -12..12, speed: 0.01-10
+            // ── MINIMAX ───────────────────────────────────────────
             const mmVoiceId = minimaxVoiceId || voiceId;
             if (!mmVoiceId) return res.status(400).json({ error: 'Voice ID Minimax lipsă.' });
 
@@ -655,67 +652,84 @@ app.post('/api/generate', authenticate, async (req, res) => {
             const clampedPitch = Math.min(12, Math.max(-12, parseInt(pitch) || 0));
             const clampedVol = Math.min(2.0, Math.max(0.5, parseFloat(vol) || 1.0));
 
-            ai33Url = `${AI33_BASE_URL}/v1m/task/text-to-speech`;
-            ai33Body = {
-                text: text.substring(0, 9000),
-                model: 'speech-2.6-hd',
-                voice_setting: {
-                    voice_id: mmVoiceId,
-                    vol: clampedVol,
-                    pitch: clampedPitch,
-                    speed: clampedSpeed,
-                },
-                language_boost: language_boost || 'Auto',
-                with_transcript: false,
-            };
             console.log(`${ts()} 🎤 Generare Minimax | voice=${mmVoiceId} | speed=${clampedSpeed} | pitch=${clampedPitch} | vol=${clampedVol}`);
+
+            try {
+                voiceResp = await fetch(`${VOICE_API_BASE}/api/minimax-tts`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${DUBVOICE_API_KEY}` },
+                    body: JSON.stringify({
+                        text: text.substring(0, 100000),
+                        voice_id: mmVoiceId,
+                        model: 'speech-2.6-hd',
+                        language_boost: language_boost || 'Auto',
+                        speed: clampedSpeed,
+                        pitch: clampedPitch,
+                        vol: clampedVol,
+                    }),
+                    signal: AbortSignal.timeout(90000),
+                });
+            } catch(fetchErr) {
+                if (fetchErr.name === 'TimeoutError' || fetchErr.name === 'AbortError')
+                    return res.status(503).json({ error: 'Serverul de voce nu răspunde.' });
+                throw fetchErr;
+            }
+
+            if (!voiceResp.ok) {
+                if (voiceResp.status === 429) return res.status(429).json({ error: 'Suprasolicitat. Așteaptă câteva secunde.' });
+                let errDetail = '';
+                try { errDetail = (await voiceResp.text()).slice(0, 200); } catch(_) {}
+                console.error(`${ts()} ❌ Eroare generare voce (Minimax) ${voiceResp.status}: ${errDetail}`);
+                throw new Error(`Eroare la generarea vocii (${voiceResp.status}).`);
+            }
+
+            const mmData = await voiceResp.json();
+            if (!mmData.success || !mmData.audio_url) throw new Error('Răspuns invalid de la server.');
+            outputUrl = mmData.audio_url;
+
         } else {
             // ── ELEVENLABS ───────────────────────────────────────
             const resolvedVoiceId = voiceId || 'nPczCjzI2devNBz1zQrb';
             const clampedSpeed = Math.min(1.20, Math.max(0.70, parseFloat(speed) || 1.0));
 
-            ai33Url = `${AI33_BASE_URL}/v1/text-to-speech/${resolvedVoiceId}?output_format=mp3_44100_128`;
-            ai33Body = {
-                text,
-                model_id: 'eleven_multilingual_v2',
-                voice_settings: {
-                    stability: parseFloat(stability) || 0.5,
-                    similarity_boost: parseFloat(similarity_boost) || 0.75,
-                    speed: clampedSpeed,
-                },
-                with_transcript: false,
-            };
             console.log(`${ts()} 🎤 Generare ElevenLabs | voice=${resolvedVoiceId} | speed=${clampedSpeed}`);
-        }
 
-        // ── Cerere către AI33 ────────────────────────────────────
-        try {
-            ai33Resp = await fetch(ai33Url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'xi-api-key': AI33_API_KEY },
-                body: JSON.stringify(ai33Body),
-                signal: AbortSignal.timeout(15000),
-            });
-        } catch(fetchErr) {
-            if (fetchErr.name === 'TimeoutError' || fetchErr.name === 'AbortError') {
-                return res.status(503).json({ error: 'Serverul de voce nu răspunde.' });
+            try {
+                voiceResp = await fetch(`${VOICE_API_BASE}/api/v1/tts`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${DUBVOICE_API_KEY}` },
+                    body: JSON.stringify({
+                        text,
+                        voice_id: resolvedVoiceId,
+                        model_id: 'eleven_multilingual_v2',
+                        voice_settings: {
+                            stability: parseFloat(stability) || 0.5,
+                            similarity_boost: parseFloat(similarity_boost) || 0.75,
+                            speed: clampedSpeed,
+                            style: 0,
+                            use_speaker_boost: true,
+                        },
+                    }),
+                    signal: AbortSignal.timeout(20000),
+                });
+            } catch(fetchErr) {
+                if (fetchErr.name === 'TimeoutError' || fetchErr.name === 'AbortError')
+                    return res.status(503).json({ error: 'Serverul de voce nu răspunde.' });
+                throw fetchErr;
             }
-            throw fetchErr;
+
+            if (!voiceResp.ok) {
+                if (voiceResp.status === 429) return res.status(429).json({ error: 'Suprasolicitat. Așteaptă câteva secunde.' });
+                let errDetail = '';
+                try { errDetail = (await voiceResp.text()).slice(0, 200); } catch(_) {}
+                console.error(`${ts()} ❌ Eroare generare voce (ElevenLabs) ${voiceResp.status}: ${errDetail}`);
+                throw new Error(`Eroare la generarea vocii (${voiceResp.status}).`);
+            }
+
+            const elData = await voiceResp.json();
+            if (!elData.task_id) throw new Error('Răspuns invalid de la server.');
+            outputUrl = await pollVoiceTask(elData.task_id);
         }
-
-        if (!ai33Resp.ok) {
-            if (ai33Resp.status === 429) return res.status(429).json({ error: 'Suprasolicitat. Așteaptă câteva secunde.' });
-            // Încearcă să citești mesajul de eroare din AI33 pentru debugging
-            let errDetail = '';
-            try { errDetail = (await ai33Resp.text()).slice(0, 200); } catch(_) {}
-            console.error(`${ts()} ❌ AI33 eroare ${ai33Resp.status} [${isMinimax?'Minimax':'ElevenLabs'}]: ${errDetail}`);
-            throw new Error(`AI33 ${ai33Resp.status}: ${errDetail.slice(0, 100) || 'eroare necunoscută'}`);
-        }
-
-        const ai33Data = await ai33Resp.json();
-        if (!ai33Data.success || !ai33Data.task_id) throw new Error('AI33 nu a returnat task_id.');
-
-        const outputUrl = await pollAI33Task(ai33Data.task_id);
         const fileName = `voice_${Date.now()}.mp3`;
         await downloadVoiceFile(outputUrl, path.join(DOWNLOAD_DIR, fileName));
 
