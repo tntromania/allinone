@@ -390,9 +390,9 @@ function downloadVoiceFile(url, dest) {
     });
 }
 
-async function pollVoiceTask(taskId, maxWait = 75000) {
-    const interval = 3000, maxAttempts = Math.floor(maxWait / interval);
-    for (let i = 0; i < maxAttempts; i++) {
+async function pollVoiceTask(taskId) {
+    const interval = 3000;
+    while (true) {
         await new Promise(r => setTimeout(r, interval));
         let resp;
         try { resp = await fetch(`${VOICE_API_BASE}/api/v1/tts/${taskId}`, { headers: { 'Authorization': `Bearer ${DUBVOICE_API_KEY}` }, signal: AbortSignal.timeout(10000) }); }
@@ -405,9 +405,8 @@ async function pollVoiceTask(taskId, maxWait = 75000) {
             if (!audioUrl) throw new Error('Task finalizat fără URL audio.');
             return audioUrl;
         }
-        if (task.status === 'error' || task.status === 'failed') throw new Error(task.error || 'Eroare la procesarea vocii.');
+        if (task.status === 'failed' || task.status === 'error') throw new Error(task.error || 'Eroare la procesarea vocii.');
     }
-    throw new Error('Timeout: 75s depășit. Încearcă din nou.');
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -667,13 +666,8 @@ app.post('/api/generate', authenticate, async (req, res) => {
                         pitch: clampedPitch,
                         vol: clampedVol,
                     }),
-                    signal: AbortSignal.timeout(90000),
                 });
-            } catch(fetchErr) {
-                if (fetchErr.name === 'TimeoutError' || fetchErr.name === 'AbortError')
-                    return res.status(503).json({ error: 'Serverul de voce nu răspunde.' });
-                throw fetchErr;
-            }
+            } catch(fetchErr) { throw fetchErr; }
 
             if (!voiceResp.ok) {
                 if (voiceResp.status === 429) return res.status(429).json({ error: 'Suprasolicitat. Așteaptă câteva secunde.' });
