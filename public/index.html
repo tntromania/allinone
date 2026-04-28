@@ -944,17 +944,10 @@ async function processUrl(url, idx, quality, limba, skipVoice, skipCut, manualTe
       setCardStatus(idx, 'Voice-over...');
       setCardLoading(idx, `Se generează voice-over cu ${selectedVoice.name} (${textToSpeak.length} chars)...`);
 
-      // Traducere suplimentară dacă e nevoie
-      if (!manualText && result.transcript) {
-        try {
-          const tRes = await fetch(`${API_BASE}/api/translate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-            body: JSON.stringify({ text: textToSpeak, limba })
-          });
-          const tData = await tRes.json();
-          if (tRes.ok && tData.translated) textToSpeak = tData.translated;
-        } catch(e) {}
+      // Dacă limba e engleză, folosim textul original (nu traducerea).
+      // Altfel, textul e deja tradus de pipeline — nu mai retraducem.
+      if (!manualText && limba === 'engleză' && result.originalText) {
+        textToSpeak = result.originalText;
       }
 
       try {
