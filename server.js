@@ -414,8 +414,19 @@ async function pollVoiceTask(taskId) {
     throw new Error('Timeout la generarea vocii (>3 min).');
 }
 
-// ══════════════════════════════════════════════════════════════
-// ██ ROUTES AUTH
+// ── SANITIZARE ERORI — nu expune niciodată provider-ul intern ─
+function sanitizeError(err) {
+    const msg = (err?.message || String(err) || 'Eroare necunoscută');
+    // Maschează orice URL sau referință la servicii interne
+    const cleaned = msg
+        .replace(/https?:\/\/[^\s"')]+/gi, '[service]')
+        .replace(/xi-api-key[^\s"').]*/gi, '[auth]')
+        .replace(/ai33[^\s"').]*/gi, '[service]')
+        .replace(/minimax[^\s"').]*/gi, '[service]')
+        .replace(/dubvoice[^\s"').]*/gi, '[service]')
+        .replace(/elevenlabs[^\s"').]*/gi, '[service]');
+    return cleaned;
+}
 // ══════════════════════════════════════════════════════════════
 app.post('/api/auth/google', async (req, res) => {
     try {
@@ -648,15 +659,15 @@ app.post('/api/generate', authenticate, async (req, res) => {
         let voiceResp, outputUrl;
 
         if (isMinimax) {
-            // ── MINIMAX via AI33 ──────────────────────────────────
+            // ── MINIMAX ───────────────────────────────────────────
             const mmVoiceId = minimaxVoiceId || voiceId;
-            if (!mmVoiceId) return res.status(400).json({ error: 'Voice ID Minimax lipsă.' });
+            if (!mmVoiceId) return res.status(400).json({ error: 'Voice ID lipsă.' });
 
             const clampedSpeed = Math.min(10.0, Math.max(0.01, parseFloat(speed) || 1.0));
             const clampedPitch = Math.min(12, Math.max(-12, parseInt(pitch) || 0));
             const clampedVol = Math.min(2.0, Math.max(0.5, parseFloat(vol) || 1.0));
 
-            console.log(`${ts()} 🎤 Generare Minimax/AI33 | voice=${mmVoiceId} | speed=${clampedSpeed} | pitch=${clampedPitch} | vol=${clampedVol}`);
+            console.log(`${ts()} 🎤 Generare Minimax | voice=${mmVoiceId} | speed=${clampedSpeed} | pitch=${clampedPitch} | vol=${clampedVol}`);
 
             try {
                 voiceResp = await fetch(`${VOICE_API_BASE}/v1m/task/text-to-speech`, {
@@ -680,21 +691,20 @@ app.post('/api/generate', authenticate, async (req, res) => {
                 if (voiceResp.status === 429) return res.status(429).json({ error: 'Suprasolicitat. Așteaptă câteva secunde.' });
                 let errDetail = '';
                 try { errDetail = (await voiceResp.text()).slice(0, 200); } catch(_) {}
-                console.error(`${ts()} ❌ Eroare generare voce (Minimax/AI33) ${voiceResp.status}: ${errDetail}`);
+                console.error(`${ts()} ❌ Eroare generare voce (Minimax) ${voiceResp.status}: ${errDetail}`);
                 throw new Error(`Eroare la generarea vocii (${voiceResp.status}).`);
             }
 
             const mmData = await voiceResp.json();
-            if (!mmData.success || !mmData.task_id) throw new Error('Răspuns invalid de la server AI33.');
-            // AI33 e async — facem polling
+            if (!mmData.success || !mmData.task_id) throw new Error('Răspuns invalid de la server.');
             outputUrl = await pollVoiceTask(mmData.task_id);
 
         } else {
-            // ── ELEVENLABS via AI33 ──────────────────────────────
+            // ── ELEVENLABS ────────────────────────────────────────
             const resolvedVoiceId = voiceId || 'nPczCjzI2devNBz1zQrb';
             const clampedSpeed = Math.min(1.20, Math.max(0.70, parseFloat(speed) || 1.0));
 
-            console.log(`${ts()} 🎤 Generare ElevenLabs/AI33 | voice=${resolvedVoiceId} | speed=${clampedSpeed}`);
+            console.log(`${ts()} 🎤 Generare ElevenLabs | voice=${resolvedVoiceId} | speed=${clampedSpeed}`);
 
             try {
                 voiceResp = await fetch(`${VOICE_API_BASE}/v1/text-to-speech`, {
@@ -724,12 +734,12 @@ app.post('/api/generate', authenticate, async (req, res) => {
                 if (voiceResp.status === 429) return res.status(429).json({ error: 'Suprasolicitat. Așteaptă câteva secunde.' });
                 let errDetail = '';
                 try { errDetail = (await voiceResp.text()).slice(0, 200); } catch(_) {}
-                console.error(`${ts()} ❌ Eroare generare voce (ElevenLabs/AI33) ${voiceResp.status}: ${errDetail}`);
+                console.error(`${ts()} ❌ Eroare generare voce (ElevenLabs) ${voiceResp.status}: ${errDetail}`);
                 throw new Error(`Eroare la generarea vocii (${voiceResp.status}).`);
             }
 
             const elData = await voiceResp.json();
-            if (!elData.task_id) throw new Error('Răspuns invalid de la server AI33.');
+            if (!elData.task_id) throw new Error('Răspuns invalid de la server.');
             outputUrl = await pollVoiceTask(elData.task_id);
         }
         const fileName = `voice_${Date.now()}.mp3`;
@@ -741,7 +751,7 @@ app.post('/api/generate', authenticate, async (req, res) => {
 
     } catch(error) {
         console.error(`${ts()} ❌ /api/generate fail: ${error.message}`);
-        res.status(500).json({ error: error.message || 'Eroare la generarea vocii.' });
+        res.status(500).json({ error: sanitizeError(error) });
     }
 });
 
