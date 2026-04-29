@@ -727,7 +727,7 @@ app.post('/api/generate', authenticate, async (req, res) => {
         const fileName = `voice_${Date.now()}.mp3`;
         await downloadVoiceFile(outputUrl, path.join(DOWNLOAD_DIR, fileName));
 
-        try { await hubAPI.useVoiceChars(req.userId, cost); } catch(e) {}
+        // try { await hubAPI.useVoiceChars(req.userId, cost); } catch(e) {}  // ← MOCK MODE: dezactivat temporar
 
         res.json({ audioUrl: `/download/${fileName}`, remaining_chars: (balance.voice_characters||0) - cost });
 
