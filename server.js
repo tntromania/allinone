@@ -13,9 +13,14 @@ const helmet = require('helmet');
 
 const { authenticate, hubAPI } = require('./hub-auth');
 
-const REQUIRED_ENV = ['OPENAI_API_KEY', 'HUB_URL', 'INTERNAL_API_KEY', 'DUBVOICE_API_KEY', 'PROXY_URL'];
+// AI33_API_KEY = noul provider (ai33.pro). Acceptăm și DUBVOICE_API_KEY ca alias retro-compatibil
+// pentru ca deploy-urile vechi să nu pice până se setează variabila nouă.
+const REQUIRED_ENV = ['OPENAI_API_KEY', 'HUB_URL', 'INTERNAL_API_KEY', 'PROXY_URL'];
 for (const key of REQUIRED_ENV) {
     if (!process.env[key]) { console.error(`❌ Variabila de mediu lipsă: ${key}`); process.exit(1); }
+}
+if (!process.env.AI33_API_KEY && !process.env.DUBVOICE_API_KEY) {
+    console.error('❌ Variabila de mediu lipsă: AI33_API_KEY (sau DUBVOICE_API_KEY ca alias)'); process.exit(1);
 }
 
 const app = express();
@@ -24,8 +29,8 @@ process.on('unhandledRejection', (reason) => { console.error('⚠️ Unhandled R
 app.set('trust proxy', 1);
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const DUBVOICE_API_KEY = process.env.DUBVOICE_API_KEY;
-const VOICE_API_BASE = 'https://www.dubvoice.ai';
+const VOICE_API_KEY = process.env.AI33_API_KEY || process.env.DUBVOICE_API_KEY;
+const VOICE_API_BASE = 'https://api.ai33.pro';
 const PROXY_URL = process.env.PROXY_URL;
 
 const DOWNLOAD_DIR = path.resolve(__dirname, 'downloads');
@@ -390,24 +395,25 @@ function downloadVoiceFile(url, dest) {
     });
 }
 
-async function pollVoiceTask(taskId, maxWait = 200000) {
+async function pollVoiceTask(taskId, maxWait = 90000) {
     const interval = 3000, maxAttempts = Math.floor(maxWait / interval);
     for (let i = 0; i < maxAttempts; i++) {
         await new Promise(r => setTimeout(r, interval));
         let resp;
-        try { resp = await fetch(`${VOICE_API_BASE}/api/v1/tts/${taskId}`, { headers: { 'Authorization': `Bearer ${DUBVOICE_API_KEY}` }, signal: AbortSignal.timeout(10000) }); }
+        try { resp = await fetch(`${VOICE_API_BASE}/v1/task/${taskId}`, { headers: { 'xi-api-key': VOICE_API_KEY }, signal: AbortSignal.timeout(10000) }); }
         catch(e) { continue; }
         if (resp.status === 503 || resp.status === 502) continue;
         if (!resp.ok) throw new Error(`Polling fail: ${resp.status}`);
         const task = await resp.json();
-        if (task.status === 'completed') {
-            const audioUrl = task.result;
+        // ai33.pro statusuri: "doing" | "done" | "error"
+        if (task.status === 'done') {
+            const audioUrl = task.metadata?.audio_url || task.metadata?.output_uri;
             if (!audioUrl) throw new Error('Task finalizat fără URL audio.');
             return audioUrl;
         }
-        if (task.status === 'error' || task.status === 'failed') throw new Error(task.error || 'Eroare la procesarea vocii.');
+        if (task.status === 'error' || task.status === 'failed') throw new Error(task.error_message || 'Eroare la procesarea vocii.');
     }
-    throw new Error('Timeout: 200s depășit. Încearcă din nou.');
+    throw new Error('Timeout: 90s depășit. Încearcă din nou.');
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -644,7 +650,7 @@ app.post('/api/generate', authenticate, async (req, res) => {
         let voiceResp, outputUrl;
 
         if (isMinimax) {
-            // ── MINIMAX ───────────────────────────────────────────
+            // ── MINIMAX (ai33.pro) ────────────────────────────────
             const mmVoiceId = minimaxVoiceId || voiceId;
             if (!mmVoiceId) return res.status(400).json({ error: 'Voice ID Minimax lipsă.' });
 
@@ -655,19 +661,21 @@ app.post('/api/generate', authenticate, async (req, res) => {
             console.log(`${ts()} 🎤 Generare Minimax | voice=${mmVoiceId} | speed=${clampedSpeed} | pitch=${clampedPitch} | vol=${clampedVol}`);
 
             try {
-                voiceResp = await fetch(`${VOICE_API_BASE}/api/minimax-tts`, {
+                voiceResp = await fetch(`${VOICE_API_BASE}/v1m/task/text-to-speech`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${DUBVOICE_API_KEY}` },
+                    headers: { 'Content-Type': 'application/json', 'xi-api-key': VOICE_API_KEY },
                     body: JSON.stringify({
                         text: text.substring(0, 100000),
-                        voice_id: mmVoiceId,
                         model: 'speech-2.6-hd',
+                        voice_setting: {
+                            voice_id: mmVoiceId,
+                            vol: clampedVol,
+                            pitch: clampedPitch,
+                            speed: clampedSpeed,
+                        },
                         language_boost: language_boost || 'Auto',
-                        speed: clampedSpeed,
-                        pitch: clampedPitch,
-                        vol: clampedVol,
                     }),
-                    signal: AbortSignal.timeout(90000),
+                    signal: AbortSignal.timeout(30000),
                 });
             } catch(fetchErr) {
                 if (fetchErr.name === 'TimeoutError' || fetchErr.name === 'AbortError')
@@ -684,31 +692,25 @@ app.post('/api/generate', authenticate, async (req, res) => {
             }
 
             const mmData = await voiceResp.json();
-            if (!mmData.success || !mmData.audio_url) throw new Error('Răspuns invalid de la server.');
-            outputUrl = mmData.audio_url;
+            if (!mmData.success || !mmData.task_id) throw new Error('Răspuns invalid de la server.');
+            outputUrl = await pollVoiceTask(mmData.task_id);
 
         } else {
-            // ── ELEVENLABS ───────────────────────────────────────
+            // ── ELEVENLABS (ai33.pro) ────────────────────────────
+            // Notă: ai33.pro acceptă doar { text, model_id } în body — voice_settings
+            // nu sunt suportate la acest endpoint. Le păstrăm în signature pentru
+            // compat cu frontend-ul, dar nu le mai trimitem.
             const resolvedVoiceId = voiceId || 'nPczCjzI2devNBz1zQrb';
-            const clampedSpeed = Math.min(1.20, Math.max(0.70, parseFloat(speed) || 1.0));
 
-            console.log(`${ts()} 🎤 Generare ElevenLabs | voice=${resolvedVoiceId} | speed=${clampedSpeed}`);
+            console.log(`${ts()} 🎤 Generare ElevenLabs | voice=${resolvedVoiceId}`);
 
             try {
-                voiceResp = await fetch(`${VOICE_API_BASE}/api/v1/tts`, {
+                voiceResp = await fetch(`${VOICE_API_BASE}/v1/text-to-speech/${encodeURIComponent(resolvedVoiceId)}?output_format=mp3_44100_128`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${DUBVOICE_API_KEY}` },
+                    headers: { 'Content-Type': 'application/json', 'xi-api-key': VOICE_API_KEY },
                     body: JSON.stringify({
                         text,
-                        voice_id: resolvedVoiceId,
                         model_id: 'eleven_multilingual_v2',
-                        voice_settings: {
-                            stability: parseFloat(stability) || 0.5,
-                            similarity_boost: parseFloat(similarity_boost) || 0.75,
-                            speed: clampedSpeed,
-                            style: 0,
-                            use_speaker_boost: true,
-                        },
                     }),
                     signal: AbortSignal.timeout(20000),
                 });
