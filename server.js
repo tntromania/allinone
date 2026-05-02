@@ -395,7 +395,7 @@ function downloadVoiceFile(url, dest) {
     });
 }
 
-async function pollVoiceTask(taskId, maxWait = 90000) {
+async function pollVoiceTask(taskId, maxWait = 180000) {
     const interval = 3000, maxAttempts = Math.floor(maxWait / interval);
     for (let i = 0; i < maxAttempts; i++) {
         await new Promise(r => setTimeout(r, interval));
@@ -413,7 +413,7 @@ async function pollVoiceTask(taskId, maxWait = 90000) {
         }
         if (task.status === 'error' || task.status === 'failed') throw new Error(task.error_message || 'Eroare la procesarea vocii.');
     }
-    throw new Error('Timeout: 90s depășit. Încearcă din nou.');
+    throw new Error('Timeout: 180s depășit. Încearcă din nou.');
 }
 
 // ══════════════════════════════════════════════════════════════
