@@ -91,7 +91,7 @@ tailwind.config = {
 <script>
     window.VIRALIO_NAV_CONFIG = { currentApp: 'pipeline' };
 </script>
-<script src="https://viralio.ro/viralio-nav.js?v=1"></script>
+<script src="https://viralio.ro/viralio-nav.js?v=2"></script>
 
   <!-- LOGIN MODAL -->
   <div id="login-modal">
@@ -207,6 +207,10 @@ tailwind.config = {
           <div class="font-bold text-slate-800 text-sm">Voice Studio AI</div>
           <div id="voice-config-sel" class="text-[0.65rem] text-slate-400 font-medium mt-0.5">Roger (ElevenLabs) · click pentru configurare</div>
         </div>
+        <span id="voice-chars-chip" class="hidden items-center gap-1.5 px-2.5 py-1 rounded-full bg-pink-50 border border-pink-100 text-pink-700 text-[0.65rem] font-bold shrink-0" title="Caractere voce disponibile">
+          <i class="fas fa-keyboard text-pink-400"></i>
+          <span id="voice-chars-value">0</span>
+        </span>
         <i id="voice-config-chevron" class="fas fa-chevron-down text-slate-400 text-xs chevron-anim"></i>
       </div>
       <div id="voice-config-body" class="bg-slate-50 border-b border-slate-100">
@@ -428,24 +432,57 @@ async function handleCredentialResponse(response) {
   }
 }
 
-function updateUI(user) {
-  authToken = getToken();
-  document.getElementById('login-top-btn').classList.add('hidden');
-  const up = document.getElementById('user-profile');
-  up.classList.remove('hidden'); up.classList.add('flex');
-  document.getElementById('nav-name').textContent = (user.name||'').split(' ')[0];
-  document.getElementById('nav-avatar').src = user.picture||user.avatar||'';
-  // HUB poate returna credits sau creditsLeft
-  const cr = user.credits ?? user.creditsLeft ?? user.credit ?? 0;
-  document.getElementById('nav-credits').textContent = Math.floor(Number(cr)||0);
-  // HUB poate returna voice_characters sau voiceChars
-  const vc = user.voice_characters ?? user.voiceChars ?? user.voice_chars ?? 0;
-  document.getElementById('nav-chars').textContent = (Number(vc)||0).toLocaleString();
+function updateVoiceCharsChip() {
+  const chip = document.getElementById('voice-chars-chip');
+  const val = document.getElementById('voice-chars-value');
+  if (!chip || !val) return;
+  const chars = Number(window._userChars) || 0;
+  if (chars > 0) {
+    chip.classList.remove('hidden');
+    chip.classList.add('inline-flex');
+    val.textContent = chars.toLocaleString('ro-RO') + ' car.';
+  } else {
+    chip.classList.add('hidden');
+    chip.classList.remove('inline-flex');
+  }
 }
 
-function logout() { removeToken(); authToken = null; location.reload(); }
+function updateUI(user) {
+  authToken = getToken();
+  // HUB poate returna credits sau creditsLeft
+  const cr = user.credits ?? user.creditsLeft ?? user.credit ?? 0;
+  // HUB poate returna voice_characters sau voiceChars
+  const vc = user.voice_characters ?? user.voiceChars ?? user.voice_chars ?? 0;
+
+  // salvam global pentru accesul altor functii
+  window._userCredits = Math.floor(Number(cr)||0);
+  window._userChars = Number(vc)||0;
+  updateVoiceCharsChip();
+
+  if (window.ViralioNav) {
+    window.ViralioNav.setUser({
+      name: (user.name||'').split(' ')[0] || 'User',
+      avatar: user.picture||user.avatar||'',
+      credits: window._userCredits
+    });
+  }
+}
+
+function logout() { 
+  removeToken(); 
+  authToken = null; 
+  if (window.ViralioNav) window.ViralioNav.clearUser();
+  location.reload(); 
+}
+
+function wireNavButtons() {
+  if (!window.ViralioNav) return;
+  window.ViralioNav.onLogin(() => openLoginModal());
+  window.ViralioNav.onLogout(() => logout());
+}
 
 window.addEventListener('load', async () => {
+  wireNavButtons();
   const token = getToken();
   if (token) {
     try {
@@ -873,8 +910,11 @@ async function processUrl(url, idx, quality, limba, skipVoice, skipCut, manualTe
     result.originalText = data.originalText;
     result.transcript = data.translatedText || data.originalText || null;
 
-    if (data.creditsLeft !== undefined) document.getElementById('nav-credits').textContent = Math.floor(data.creditsLeft);
-    if (data.voice_characters !== undefined) document.getElementById('nav-chars').textContent = (data.voice_characters || 0).toLocaleString();
+    if (data.creditsLeft !== undefined) {
+      window._userCredits = Math.floor(data.creditsLeft);
+      if (window.ViralioNav) window.ViralioNav.setCredits(window._userCredits);
+    }
+    if (data.voice_characters !== undefined) { window._userChars = Number(data.voice_characters)||0; updateVoiceCharsChip(); }
 
     setMiniStep(idx, 1, 'done');
     setCardStatus(idx, 'Download ✓');
@@ -958,7 +998,7 @@ async function processUrl(url, idx, quality, limba, skipVoice, skipCut, manualTe
         if (!vRes.ok) throw new Error(vData.error || 'Eroare voice');
 
         result.voiceUrl = vData.audioUrl;
-        if (vData.remaining_chars !== undefined) document.getElementById('nav-chars').textContent = (vData.remaining_chars || 0).toLocaleString();
+        if (vData.remaining_chars !== undefined) { window._userChars = Number(vData.remaining_chars)||0; updateVoiceCharsChip(); }
 
         setMiniStep(idx, 2, 'done');
         setCardStatus(idx, 'Voice ✓');
@@ -1008,7 +1048,10 @@ async function processUrl(url, idx, quality, limba, skipVoice, skipCut, manualTe
       if (!scRes.ok) throw new Error(scData.error || 'Eroare smart cut');
 
       result.cutUrl = scData.downloadUrl;
-      if (scData.creditsLeft !== undefined) document.getElementById('nav-credits').textContent = Math.floor(scData.creditsLeft);
+      if (scData.creditsLeft !== undefined) {
+        window._userCredits = Math.floor(scData.creditsLeft);
+        if (window.ViralioNav) window.ViralioNav.setCredits(window._userCredits);
+      }
 
       setMiniStep(idx, 3, 'done');
       setCardStatus(idx, 'Smart Cut ✓');
