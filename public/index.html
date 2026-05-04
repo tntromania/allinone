@@ -461,9 +461,13 @@ function updateUI(user) {
 
   if (window.ViralioNav) {
     window.ViralioNav.setUser({
-      name: (user.name||'').split(' ')[0] || 'User',
-      avatar: user.picture||user.avatar||'',
-      credits: window._userCredits
+            name:             user.name,
+            email:            user.email,
+            avatar:           user.picture,
+            credits:          user.credits,
+            voice_characters: user.voice_characters,
+            plan:             user.subscriptionPlan,
+            status:           user.subscriptionStatus,
     });
   }
 }
